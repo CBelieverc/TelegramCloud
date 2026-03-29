@@ -25,8 +25,6 @@ interface UserStatus {
   linkedAt: string | null;
 }
 
-const BOT_USERNAME_KEY = "telegramcloud_bot_username";
-
 export default function SettingsPage() {
   const [user, setUser] = useState<UserStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,15 +67,29 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchStatus();
-    const saved = localStorage.getItem(BOT_USERNAME_KEY);
-    if (saved) setBotUsername(saved);
   }, []);
 
-  const handleSaveBotUsername = () => {
+  useEffect(() => {
+    if (user?.botUsername && !botUsername) {
+      setBotUsername(user.botUsername);
+    }
+  }, [user?.botUsername, botUsername]);
+
+  const handleSaveBotUsername = async () => {
     const cleaned = botUsername.replace("@", "").trim();
+    if (!cleaned) return;
     setBotUsername(cleaned);
-    localStorage.setItem(BOT_USERNAME_KEY, cleaned);
-    showToast("success", "Bot username saved");
+    try {
+      await fetch("/api/user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save-bot-username", botUsername: cleaned }),
+      });
+      showToast("success", "Bot username saved");
+      fetchStatus();
+    } catch {
+      showToast("error", "Failed to save");
+    }
   };
 
   const handleConnect = async () => {
@@ -224,65 +236,81 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {!effectiveUsername && !user?.linked && (
+      {!user?.linked && (
         <div className="mb-6 p-5 bg-neutral-900 border border-neutral-800 rounded-xl">
           <div className="flex items-center gap-3 mb-4">
             <Bot className="w-5 h-5 text-blue-400" />
             <h2 className="text-sm font-semibold text-white">
-              Step 1: Create Your Bot
+              {effectiveUsername ? "Bot Username" : "Step 1: Create Your Bot"}
             </h2>
           </div>
 
-          <ol className="space-y-2 mb-4">
-            <li className="flex gap-2 text-xs text-neutral-400">
-              <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
-                1
-              </span>
-              <span>
-                Open{" "}
-                <a
-                  href="https://t.me/BotFather"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:underline font-medium"
-                >
-                  @BotFather
-                </a>{" "}
-                on Telegram
-              </span>
-            </li>
-            <li className="flex gap-2 text-xs text-neutral-400">
-              <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
-                2
-              </span>
-              <span>
-                Send{" "}
-                <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
-                  /newbot
-                </code>{" "}
-                and follow the prompts
-              </span>
-            </li>
-            <li className="flex gap-2 text-xs text-neutral-400">
-              <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
-                3
-              </span>
-              <span>
-                Copy the <strong className="text-neutral-300">bot username</strong>{" "}
-                BotFather gives you (ends with{" "}
-                <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
-                  _bot
-                </code>
-                )
-              </span>
-            </li>
-            <li className="flex gap-2 text-xs text-neutral-400">
-              <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
-                4
-              </span>
-              <span>Paste the username below</span>
-            </li>
-          </ol>
+          {!effectiveUsername && (
+            <ol className="space-y-2 mb-4">
+              <li className="flex gap-2 text-xs text-neutral-400">
+                <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                  1
+                </span>
+                <span>
+                  Open{" "}
+                  <a
+                    href="https://t.me/BotFather"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:underline font-medium"
+                  >
+                    @BotFather
+                  </a>{" "}
+                  on Telegram
+                </span>
+              </li>
+              <li className="flex gap-2 text-xs text-neutral-400">
+                <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                  2
+                </span>
+                <span>
+                  Send{" "}
+                  <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
+                    /newbot
+                  </code>{" "}
+                  and follow the prompts
+                </span>
+              </li>
+              <li className="flex gap-2 text-xs text-neutral-400">
+                <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                  3
+                </span>
+                <span>
+                  Copy the <strong className="text-neutral-300">bot username</strong>{" "}
+                  BotFather gives you (ends with{" "}
+                  <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
+                    _bot
+                  </code>
+                  )
+                </span>
+              </li>
+              <li className="flex gap-2 text-xs text-neutral-400">
+                <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                  4
+                </span>
+                <span>Paste the username below</span>
+              </li>
+            </ol>
+          )}
+
+          {effectiveUsername && (
+            <p className="text-xs text-neutral-500 mb-3">
+              Your bot:{" "}
+              <a
+                href={`https://t.me/${effectiveUsername}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:underline"
+              >
+                @{effectiveUsername}
+              </a>
+            </p>
+          )}
 
           <div className="flex items-center gap-2">
             <div className="relative flex-1">

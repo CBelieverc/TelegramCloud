@@ -11,6 +11,7 @@ CREATE TABLE `users` (
 	`telegram_user_id` text,
 	`telegram_group_chat_id` text,
 	`registration_code` text,
+	`bot_username` text,
 	`linked_at` integer,
 	`created_at` integer
 );

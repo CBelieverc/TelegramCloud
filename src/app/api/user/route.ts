@@ -14,7 +14,9 @@ export async function GET() {
   try {
     const user = await getOrCreateUser();
     const linked = !!user.telegramGroupChatId;
-    const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME ?? "";
+    const envUsername = process.env.NEXT_PUBLIC_BOT_USERNAME ?? "";
+    const botUsername =
+      user.botUsername || envUsername || "";
 
     return NextResponse.json({
       id: user.id,
@@ -39,10 +41,23 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const user = await getOrCreateUser();
+    const body = await request.json().catch(() => ({}));
+    const action = body.action;
 
+    // Save bot username
+    if (action === "save-bot-username") {
+      const username = (body.botUsername ?? "").replace("@", "").trim();
+      await db
+        .update(users)
+        .set({ botUsername: username || null })
+        .where(eq(users.id, user.id));
+      return NextResponse.json({ success: true, botUsername: username });
+    }
+
+    // Generate registration code and build Telegram link
     if (user.telegramGroupChatId) {
       return NextResponse.json(
         { error: "Already linked. Disconnect first to relink." },
@@ -57,24 +72,24 @@ export async function POST() {
       .set({ registrationCode: code })
       .where(eq(users.id, user.id));
 
-    let botUsername = "";
-    let telegramLink = "";
-
-    // Try env var first, then API
-    const envUsername = process.env.NEXT_PUBLIC_BOT_USERNAME ?? "";
-    if (envUsername) {
-      botUsername = envUsername;
-    } else if (isBotConfigured()) {
-      try {
-        botUsername = await getBotUsername();
-      } catch (err) {
-        console.error("Failed to get bot username:", err);
+    // Resolve bot username: stored > env var > API
+    let botUsername = user.botUsername || "";
+    if (!botUsername) {
+      const envUsername = process.env.NEXT_PUBLIC_BOT_USERNAME ?? "";
+      if (envUsername) {
+        botUsername = envUsername;
+      } else if (isBotConfigured()) {
+        try {
+          botUsername = await getBotUsername();
+        } catch (err) {
+          console.error("Failed to get bot username:", err);
+        }
       }
     }
 
-    if (botUsername) {
-      telegramLink = `https://t.me/${botUsername}?start=${code}`;
-    }
+    const telegramLink = botUsername
+      ? `https://t.me/${botUsername}?start=${code}`
+      : "";
 
     return NextResponse.json({
       registrationCode: code,
@@ -140,6 +155,7 @@ export async function DELETE() {
         telegramUserId: null,
         telegramGroupChatId: null,
         registrationCode: null,
+        botUsername: null,
         linkedAt: null,
       })
       .where(eq(users.id, user.id));

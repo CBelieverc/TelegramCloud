@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "4db79eff-9064-4c0e-aceb-b19b0fa50e3c",
+  "id": "5922af14-eafc-4c32-82e4-fa58dd24da8f",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "files": {
@@ -155,6 +155,13 @@
         },
         "registration_code": {
           "name": "registration_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "bot_username": {
+          "name": "bot_username",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

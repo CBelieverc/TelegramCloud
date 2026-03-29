@@ -5,6 +5,7 @@ export const users = sqliteTable("users", {
   telegramUserId: text("telegram_user_id"),
   telegramGroupChatId: text("telegram_group_chat_id"),
   registrationCode: text("registration_code"),
+  botUsername: text("bot_username"),
   linkedAt: integer("linked_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
     () => new Date()
