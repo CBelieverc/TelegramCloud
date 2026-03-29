@@ -225,17 +225,65 @@ export default function SettingsPage() {
       )}
 
       {!effectiveUsername && !user?.linked && (
-        <div className="mb-6 p-4 bg-neutral-900 border border-neutral-800 rounded-xl">
-          <div className="flex items-center gap-3 mb-3">
+        <div className="mb-6 p-5 bg-neutral-900 border border-neutral-800 rounded-xl">
+          <div className="flex items-center gap-3 mb-4">
             <Bot className="w-5 h-5 text-blue-400" />
             <h2 className="text-sm font-semibold text-white">
-              Bot Configuration
+              Step 1: Create Your Bot
             </h2>
           </div>
-          <p className="text-xs text-neutral-400 mb-3">
-            Enter your Telegram bot username (without @) to enable the
-            connection link.
-          </p>
+
+          <ol className="space-y-2 mb-4">
+            <li className="flex gap-2 text-xs text-neutral-400">
+              <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                1
+              </span>
+              <span>
+                Open{" "}
+                <a
+                  href="https://t.me/BotFather"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:underline font-medium"
+                >
+                  @BotFather
+                </a>{" "}
+                on Telegram
+              </span>
+            </li>
+            <li className="flex gap-2 text-xs text-neutral-400">
+              <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                2
+              </span>
+              <span>
+                Send{" "}
+                <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
+                  /newbot
+                </code>{" "}
+                and follow the prompts
+              </span>
+            </li>
+            <li className="flex gap-2 text-xs text-neutral-400">
+              <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                3
+              </span>
+              <span>
+                Copy the <strong className="text-neutral-300">bot username</strong>{" "}
+                BotFather gives you (ends with{" "}
+                <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
+                  _bot
+                </code>
+                )
+              </span>
+            </li>
+            <li className="flex gap-2 text-xs text-neutral-400">
+              <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                4
+              </span>
+              <span>Paste the username below</span>
+            </li>
+          </ol>
+
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">
@@ -248,21 +296,25 @@ export default function SettingsPage() {
                   setBotUsername(e.target.value.replace("@", "").trim())
                 }
                 onKeyDown={(e) => e.key === "Enter" && handleSaveBotUsername()}
-                placeholder="your_bot_username"
+                placeholder="my_cloud_bot"
                 className="w-full pl-7 pr-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white placeholder-neutral-500 outline-none focus:border-blue-500 transition-colors"
               />
             </div>
             <button
               onClick={handleSaveBotUsername}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-neutral-800 text-neutral-300 text-sm font-medium rounded-lg hover:bg-neutral-700 transition-colors border border-neutral-700"
+              disabled={!botUsername.trim()}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Save className="w-4 h-4" />
               Save
             </button>
           </div>
           <p className="text-[11px] text-neutral-600 mt-2">
-            Example: if your bot is @mycloud_bot, enter{" "}
-            <code className="text-neutral-400">mycloud_bot</code>
+            Example: BotFather says{" "}
+            <code className="text-neutral-500">
+              https://t.me/my_cloud_bot
+            </code>{" "}
+            &rarr; enter <code className="text-neutral-400">my_cloud_bot</code>
           </p>
         </div>
       )}
@@ -435,14 +487,16 @@ export default function SettingsPage() {
       </div>
 
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">How It Works</h2>
+        <h2 className="text-lg font-semibold text-white mb-4">
+          Setup Checklist
+        </h2>
         <ol className="space-y-3 text-sm text-neutral-400">
           <li className="flex gap-3">
             <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">
               1
             </span>
             <span>
-              Enter your bot&apos;s username (from{" "}
+              Create a bot on{" "}
               <a
                 href="https://t.me/BotFather"
                 target="_blank"
@@ -450,8 +504,11 @@ export default function SettingsPage() {
                 className="text-blue-400 hover:underline"
               >
                 @BotFather
-              </a>
-              ) in the field above
+              </a>{" "}
+              with{" "}
+              <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
+                /newbot
+              </code>
             </span>
           </li>
           <li className="flex gap-3">
@@ -459,9 +516,7 @@ export default function SettingsPage() {
               2
             </span>
             <span>
-              Click{" "}
-              <strong className="text-neutral-300">Connect Telegram</strong> -
-              you&apos;ll be redirected to your bot
+              Enter the bot username BotFather gives you in the field above
             </span>
           </li>
           <li className="flex gap-3">
@@ -469,13 +524,25 @@ export default function SettingsPage() {
               3
             </span>
             <span>
-              Tap <strong className="text-neutral-300">Send</strong> in
-              Telegram to authorize the bot
+              Click{" "}
+              <strong className="text-neutral-300">Connect Telegram</strong> to
+              open your bot
             </span>
           </li>
           <li className="flex gap-3">
             <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">
               4
+            </span>
+            <span>
+              Tap <strong className="text-neutral-300">Start</strong> or{" "}
+              <strong className="text-neutral-300">Send</strong> in{" "}
+              <strong className="text-neutral-300">your bot&apos;s chat</strong>{" "}
+              (not @BotFather)
+            </span>
+          </li>
+          <li className="flex gap-3">
+            <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">
+              5
             </span>
             <span>
               Come back and click{" "}
