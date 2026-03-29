@@ -28,6 +28,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [waitingConfirm, setWaitingConfirm] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
   const [toast, setToast] = useState<{
     type: "success" | "error";
     message: string;
@@ -42,8 +43,14 @@ export default function SettingsPage() {
     try {
       const res = await fetch("/api/user");
       const data = await res.json();
-      setUser(data);
-    } catch {
+      if (res.ok) {
+        setUser(data);
+        setDbError(null);
+      } else {
+        setDbError(data.error || "Failed to load user data");
+      }
+    } catch (err) {
+      setDbError("Failed to connect to server");
     } finally {
       setLoading(false);
     }
@@ -167,6 +174,26 @@ export default function SettingsPage() {
           Connect your Telegram for unlimited cloud storage
         </p>
       </div>
+
+      {dbError && (
+        <div className="mb-6 p-4 bg-red-600/10 border border-red-600/30 rounded-lg">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-200">
+                Database Error
+              </p>
+              <p className="text-xs text-red-400/70 mt-0.5">{dbError}</p>
+            </div>
+            <button
+              onClick={fetchStatus}
+              className="px-3 py-1.5 bg-red-600/20 text-red-300 text-xs rounded-lg hover:bg-red-600/30 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
 
       {!user?.botConfigured && (
         <div className="mb-6 p-4 bg-red-600/10 border border-red-600/30 rounded-lg">
