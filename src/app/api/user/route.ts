@@ -25,9 +25,13 @@ export async function GET() {
       linkedAt: user.linkedAt,
     });
   } catch (err) {
-    console.error("GET /api/user error:", err);
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("GET /api/user error:", msg, err);
     return NextResponse.json(
-      { error: "Failed to fetch user status" },
+      {
+        error: msg,
+        dbConfigured: !!(process.env.DB_URL && process.env.DB_TOKEN),
+      },
       { status: 500 }
     );
   }
@@ -73,13 +77,12 @@ export async function POST() {
       botConfigured: isBotConfigured(),
     });
   } catch (err) {
-    console.error("POST /api/user error:", err);
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("POST /api/user error:", msg, err);
     return NextResponse.json(
       {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Failed to generate registration code",
+        error: msg,
+        dbConfigured: !!(process.env.DB_URL && process.env.DB_TOKEN),
       },
       { status: 500 }
     );
@@ -115,11 +118,9 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (err) {
-    console.error("PATCH /api/user error:", err);
-    return NextResponse.json(
-      { error: "Failed to process action" },
-      { status: 500 }
-    );
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("PATCH /api/user error:", msg, err);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
@@ -139,10 +140,8 @@ export async function DELETE() {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("DELETE /api/user error:", err);
-    return NextResponse.json(
-      { error: "Failed to disconnect" },
-      { status: 500 }
-    );
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("DELETE /api/user error:", msg, err);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
