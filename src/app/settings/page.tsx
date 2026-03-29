@@ -29,6 +29,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [waitingConfirm, setWaitingConfirm] = useState(false);
+  const [telegramLink, setTelegramLink] = useState("");
   const [dbError, setDbError] = useState<string | null>(null);
   const [toast, setToast] = useState<{
     type: "success" | "error";
@@ -73,15 +74,16 @@ export default function SettingsPage() {
         return;
       }
 
-      setWaitingConfirm(true);
-      fetchStatus();
-
-      // Always try to open Telegram
+      // Build the link
       const link =
         data.telegramLink ||
         (data.botUsername
           ? `https://t.me/${data.botUsername}?start=${data.registrationCode}`
           : "");
+
+      setTelegramLink(link);
+      setWaitingConfirm(true);
+      fetchStatus();
 
       if (link) {
         window.open(link, "_blank");
@@ -113,6 +115,7 @@ export default function SettingsPage() {
       if (res.ok) {
         showToast("success", "Telegram connected successfully!");
         setWaitingConfirm(false);
+        setTelegramLink("");
         fetchStatus();
       } else {
         showToast("error", data.error || "Connection not confirmed yet");
@@ -134,6 +137,7 @@ export default function SettingsPage() {
 
     setActionLoading(true);
     setWaitingConfirm(false);
+    setTelegramLink("");
     try {
       const res = await fetch("/api/user", { method: "DELETE" });
       if (res.ok) {
@@ -286,42 +290,53 @@ export default function SettingsPage() {
                   Waiting for confirmation
                 </p>
                 <p className="text-xs text-blue-400/60 mt-0.5">
-                  Send the command to the bot on Telegram, then come back here
+                  Tap the button below to open Telegram and send the command
                 </p>
               </div>
             </div>
 
             {user?.registrationCode && (
-              <div className="flex items-center gap-2">
-                <code className="flex-1 px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-blue-300 font-mono">
-                  /start {user.registrationCode}
-                </code>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(
-                      `/start ${user.registrationCode}`
+              <div className="space-y-3">
+                {(() => {
+                  const link =
+                    telegramLink ||
+                    (user.botUsername
+                      ? `https://t.me/${user.botUsername}?start=${user.registrationCode}`
+                      : "");
+
+                  if (link) {
+                    return (
+                      <a
+                        href={link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 transition-colors"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        Open in Telegram
+                      </a>
                     );
-                    showToast("success", "Copied!");
-                  }}
-                  className="p-3 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-600 transition-colors"
-                >
-                  <Copy className="w-4 h-4" />
-                </button>
-                {(user.botUsername || user.registrationCode) && (
-                  <a
-                    href={
-                      user.botUsername
-                        ? `https://t.me/${user.botUsername}?start=${user.registrationCode}`
-                        : "#"
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-3 bg-blue-600 rounded-lg text-white hover:bg-blue-500 transition-colors"
-                    title="Open in Telegram"
+                  }
+                  return null;
+                })()}
+
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-blue-300 font-mono">
+                    /start {user.registrationCode}
+                  </code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(
+                        `/start ${user.registrationCode}`
+                      );
+                      showToast("success", "Copied!");
+                    }}
+                    className="p-3 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-600 transition-colors"
+                    title="Copy command"
                   >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                )}
+                    <Copy className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             )}
 
@@ -337,6 +352,7 @@ export default function SettingsPage() {
               <button
                 onClick={() => {
                   setWaitingConfirm(false);
+                  setTelegramLink("");
                   fetchStatus();
                 }}
                 className="px-4 py-2 bg-neutral-800 text-neutral-400 text-sm rounded-lg hover:bg-neutral-700 transition-colors"
