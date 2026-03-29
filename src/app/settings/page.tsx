@@ -20,6 +20,7 @@ interface UserStatus {
   telegramGroupChatId: string | null;
   registrationCode: string | null;
   botConfigured: boolean;
+  botUsername: string;
   linkedAt: string | null;
 }
 
@@ -72,20 +73,25 @@ export default function SettingsPage() {
         return;
       }
 
-      if (data.telegramLink) {
-        setWaitingConfirm(true);
-        window.open(data.telegramLink, "_blank");
+      setWaitingConfirm(true);
+      fetchStatus();
+
+      // Always try to open Telegram
+      const link =
+        data.telegramLink ||
+        (data.botUsername
+          ? `https://t.me/${data.botUsername}?start=${data.registrationCode}`
+          : "");
+
+      if (link) {
+        window.open(link, "_blank");
         showToast("success", "Opened Telegram. Tap send, then come back here.");
       } else {
-        setWaitingConfirm(true);
         showToast(
           "error",
-          data.botConfigured === false
-            ? "Bot not configured. Copy the code and send it to the bot manually."
-            : "Could not get bot link. Copy the code and send it to the bot manually."
+          "Could not determine bot username. Set NEXT_PUBLIC_BOT_USERNAME env var."
         );
       }
-      fetchStatus();
     } catch (err) {
       console.error("Connect error:", err);
       showToast("error", "Failed to connect");
@@ -280,8 +286,7 @@ export default function SettingsPage() {
                   Waiting for confirmation
                 </p>
                 <p className="text-xs text-blue-400/60 mt-0.5">
-                  Send the command below to the bot on Telegram, then come back
-                  here
+                  Send the command to the bot on Telegram, then come back here
                 </p>
               </div>
             </div>
@@ -302,6 +307,21 @@ export default function SettingsPage() {
                 >
                   <Copy className="w-4 h-4" />
                 </button>
+                {(user.botUsername || user.registrationCode) && (
+                  <a
+                    href={
+                      user.botUsername
+                        ? `https://t.me/${user.botUsername}?start=${user.registrationCode}`
+                        : "#"
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-3 bg-blue-600 rounded-lg text-white hover:bg-blue-500 transition-colors"
+                    title="Open in Telegram"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                )}
               </div>
             )}
 

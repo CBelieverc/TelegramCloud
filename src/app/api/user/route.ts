@@ -14,6 +14,7 @@ export async function GET() {
   try {
     const user = await getOrCreateUser();
     const linked = !!user.telegramGroupChatId;
+    const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME ?? "";
 
     return NextResponse.json({
       id: user.id,
@@ -22,6 +23,7 @@ export async function GET() {
       telegramGroupChatId: user.telegramGroupChatId,
       registrationCode: user.registrationCode,
       botConfigured: isBotConfigured(),
+      botUsername,
       linkedAt: user.linkedAt,
     });
   } catch (err) {
@@ -58,16 +60,20 @@ export async function POST() {
     let botUsername = "";
     let telegramLink = "";
 
-    if (isBotConfigured()) {
+    // Try env var first, then API
+    const envUsername = process.env.NEXT_PUBLIC_BOT_USERNAME ?? "";
+    if (envUsername) {
+      botUsername = envUsername;
+    } else if (isBotConfigured()) {
       try {
         botUsername = await getBotUsername();
       } catch (err) {
         console.error("Failed to get bot username:", err);
       }
+    }
 
-      if (botUsername) {
-        telegramLink = `https://t.me/${botUsername}?start=${code}`;
-      }
+    if (botUsername) {
+      telegramLink = `https://t.me/${botUsername}?start=${code}`;
     }
 
     return NextResponse.json({
