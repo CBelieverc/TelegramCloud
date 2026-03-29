@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Link2,
   Link2Off,
@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Send,
   Copy,
+  Save,
 } from "lucide-react";
 
 interface UserStatus {
@@ -24,12 +25,15 @@ interface UserStatus {
   linkedAt: string | null;
 }
 
+const BOT_USERNAME_KEY = "telegramcloud_bot_username";
+
 export default function SettingsPage() {
   const [user, setUser] = useState<UserStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [waitingConfirm, setWaitingConfirm] = useState(false);
   const [telegramLink, setTelegramLink] = useState("");
+  const [botUsername, setBotUsername] = useState("");
   const [dbError, setDbError] = useState<string | null>(null);
   const [toast, setToast] = useState<{
     type: "success" | "error";
@@ -41,6 +45,10 @@ export default function SettingsPage() {
     setTimeout(() => setToast(null), 4000);
   };
 
+  const getEffectiveBotUsername = useCallback(() => {
+    return user?.botUsername || botUsername || "";
+  }, [user?.botUsername, botUsername]);
+
   const fetchStatus = async () => {
     try {
       const res = await fetch("/api/user");
@@ -51,7 +59,7 @@ export default function SettingsPage() {
       } else {
         setDbError(data.error || "Failed to load user data");
       }
-    } catch (err) {
+    } catch {
       setDbError("Failed to connect to server");
     } finally {
       setLoading(false);
@@ -60,9 +68,24 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchStatus();
+    const saved = localStorage.getItem(BOT_USERNAME_KEY);
+    if (saved) setBotUsername(saved);
   }, []);
 
+  const handleSaveBotUsername = () => {
+    const cleaned = botUsername.replace("@", "").trim();
+    setBotUsername(cleaned);
+    localStorage.setItem(BOT_USERNAME_KEY, cleaned);
+    showToast("success", "Bot username saved");
+  };
+
   const handleConnect = async () => {
+    const effectiveUsername = getEffectiveBotUsername();
+    if (!effectiveUsername) {
+      showToast("error", "Enter your bot username first");
+      return;
+    }
+
     setActionLoading(true);
     try {
       const res = await fetch("/api/user", { method: "POST" });
@@ -74,26 +97,16 @@ export default function SettingsPage() {
         return;
       }
 
-      // Build the link
       const link =
         data.telegramLink ||
-        (data.botUsername
-          ? `https://t.me/${data.botUsername}?start=${data.registrationCode}`
-          : "");
+        `https://t.me/${effectiveUsername}?start=${data.registrationCode}`;
 
       setTelegramLink(link);
       setWaitingConfirm(true);
       fetchStatus();
 
-      if (link) {
-        window.open(link, "_blank");
-        showToast("success", "Opened Telegram. Tap send, then come back here.");
-      } else {
-        showToast(
-          "error",
-          "Could not determine bot username. Set NEXT_PUBLIC_BOT_USERNAME env var."
-        );
-      }
+      window.open(link, "_blank");
+      showToast("success", "Opened Telegram. Tap send, then come back here.");
     } catch (err) {
       console.error("Connect error:", err);
       showToast("error", "Failed to connect");
@@ -159,6 +172,8 @@ export default function SettingsPage() {
     );
   }
 
+  const effectiveUsername = getEffectiveBotUsername();
+
   return (
     <div className="p-8 max-w-2xl">
       {toast && (
@@ -205,20 +220,46 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {!user?.botConfigured && (
-        <div className="mb-6 p-4 bg-red-600/10 border border-red-600/30 rounded-lg">
-          <div className="flex items-center gap-3">
-            <Bot className="w-5 h-5 text-red-400" />
-            <div>
-              <p className="text-sm font-medium text-red-200">
-                Bot not configured
-              </p>
-              <p className="text-xs text-red-400/70">
-                The server admin needs to set TELEGRAM_BOT_TOKEN environment
-                variable
-              </p>
-            </div>
+      {!effectiveUsername && !user?.linked && (
+        <div className="mb-6 p-4 bg-neutral-900 border border-neutral-800 rounded-xl">
+          <div className="flex items-center gap-3 mb-3">
+            <Bot className="w-5 h-5 text-blue-400" />
+            <h2 className="text-sm font-semibold text-white">
+              Bot Configuration
+            </h2>
           </div>
+          <p className="text-xs text-neutral-400 mb-3">
+            Enter your Telegram bot username (without @) to enable the
+            connection link.
+          </p>
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">
+                @
+              </span>
+              <input
+                type="text"
+                value={botUsername}
+                onChange={(e) =>
+                  setBotUsername(e.target.value.replace("@", "").trim())
+                }
+                onKeyDown={(e) => e.key === "Enter" && handleSaveBotUsername()}
+                placeholder="your_bot_username"
+                className="w-full pl-7 pr-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white placeholder-neutral-500 outline-none focus:border-blue-500 transition-colors"
+              />
+            </div>
+            <button
+              onClick={handleSaveBotUsername}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-neutral-800 text-neutral-300 text-sm font-medium rounded-lg hover:bg-neutral-700 transition-colors border border-neutral-700"
+            >
+              <Save className="w-4 h-4" />
+              Save
+            </button>
+          </div>
+          <p className="text-[11px] text-neutral-600 mt-2">
+            Example: if your bot is @mycloud_bot, enter{" "}
+            <code className="text-neutral-400">mycloud_bot</code>
+          </p>
         </div>
       )}
 
@@ -300,8 +341,8 @@ export default function SettingsPage() {
                 {(() => {
                   const link =
                     telegramLink ||
-                    (user.botUsername
-                      ? `https://t.me/${user.botUsername}?start=${user.registrationCode}`
+                    (effectiveUsername
+                      ? `https://t.me/${effectiveUsername}?start=${user.registrationCode}`
                       : "");
 
                   if (link) {
@@ -364,14 +405,14 @@ export default function SettingsPage() {
         ) : (
           <div className="space-y-4">
             <p className="text-sm text-neutral-400">
-              One click to connect. You&rsquo;ll be redirected to Telegram to
-              authorize the bot, which will create a private storage group for
-              you.
+              {effectiveUsername
+                ? "One click to connect. You'll be redirected to Telegram to authorize the bot."
+                : "Enter your bot username above first, then click connect."}
             </p>
 
             <button
               onClick={handleConnect}
-              disabled={actionLoading}
+              disabled={actionLoading || !effectiveUsername}
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <ExternalLink className="w-4 h-4" />
@@ -389,14 +430,31 @@ export default function SettingsPage() {
               1
             </span>
             <span>
-              Click{" "}
-              <strong className="text-neutral-300">Connect Telegram</strong> -
-              you&rsquo;ll be redirected to Telegram
+              Enter your bot&apos;s username (from{" "}
+              <a
+                href="https://t.me/BotFather"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:underline"
+              >
+                @BotFather
+              </a>
+              ) in the field above
             </span>
           </li>
           <li className="flex gap-3">
             <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">
               2
+            </span>
+            <span>
+              Click{" "}
+              <strong className="text-neutral-300">Connect Telegram</strong> -
+              you&apos;ll be redirected to your bot
+            </span>
+          </li>
+          <li className="flex gap-3">
+            <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">
+              3
             </span>
             <span>
               Tap <strong className="text-neutral-300">Send</strong> in
@@ -405,7 +463,7 @@ export default function SettingsPage() {
           </li>
           <li className="flex gap-3">
             <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">
-              3
+              4
             </span>
             <span>
               Come back and click{" "}
