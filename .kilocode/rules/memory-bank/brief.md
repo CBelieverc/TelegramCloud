@@ -1,48 +1,46 @@
-# Project Brief: Next.js Starter Template
+# Project Brief: TelegramCloud
 
 ## Purpose
 
-This is a minimal Next.js starter template designed for AI-assisted development. It provides a clean foundation that can be extended to build any type of web application through interaction with an AI assistant.
+TelegramCloud is a web application that turns Telegram into an unlimited cloud storage backend. Users create a private Telegram group, add a bot, and use the application to upload, download, and organize files with a clean web interface. Telegram's unlimited storage is leveraged as the storage layer.
 
 ## Target Users
 
-- Developers wanting a clean Next.js starting point
-- Users building applications through AI-assisted coding
-- Teams needing a standardized, modern Next.js setup
+- Users who want unlimited free cloud storage
+- Developers who already use Telegram and want a file manager
+- Anyone needing large file storage without paying for cloud services
 
 ## Core Use Case
 
-Users describe what they want to build to an AI assistant, which then expands this template by:
-
-1. Adding components and pages as needed
-2. Installing additional dependencies
-3. Setting up databases, authentication, etc. using recipes
-4. Customizing styling and branding
+1. User creates a private Telegram group and a bot via BotFather
+2. User configures the bot token and chat ID in the app settings
+3. User uploads files through the web interface
+4. Files are sent to the private Telegram group via the Bot API
+5. File metadata (name, size, type, telegram file ID) is stored locally in SQLite
+6. User can browse, search, organize into folders, download, and delete files
 
 ## Key Requirements
 
 ### Must Have
 
-- Modern Next.js 16 setup with App Router
-- TypeScript for type safety
-- Tailwind CSS 4 for styling
-- ESLint for code quality
-- Clean, minimal starting structure
-- Bun as package manager
+- Telegram Bot API integration for file upload/download
+- SQLite database for file metadata and folder structure
+- File browser with folder navigation
+- Drag & drop file upload
+- File download via Telegram
+- Search functionality
+- Settings page for bot configuration
 
 ### Nice to Have
 
-- Recipe system for common additions (database, auth)
-- Memory bank for AI context persistence
-- Clear development guidelines
-
-## Success Metrics
-
-- Clean, zero-error TypeScript setup
-- Passing lint and type checks
+- File preview for images
+- Bulk operations
+- File sharing via links
 
 ## Constraints
 
-- Minimal dependencies by default
-- Framework: Next.js 16 + React 19 + Tailwind CSS 4
+- Telegram Bot API has a 50MB file upload limit per file
+- Bot must be a member of the private group
+- Chat ID must be the group's ID (starts with -100)
 - Package manager: Bun
+- Framework: Next.js 16 + React 19 + Tailwind CSS 4

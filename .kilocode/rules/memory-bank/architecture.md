@@ -1,120 +1,63 @@
-# System Patterns: Next.js Starter Template
+# System Patterns: TelegramCloud
 
 ## Architecture Overview
 
 ```
 src/
-├── app/                    # Next.js App Router
-│   ├── layout.tsx          # Root layout + metadata
-│   ├── page.tsx            # Home page
-│   ├── globals.css         # Tailwind imports + global styles
-│   └── favicon.ico         # Site icon
-└── (expand as needed)
-    ├── components/         # React components (add when needed)
-    ├── lib/                # Utilities and helpers (add when needed)
-    └── db/                 # Database files (add via recipe)
+├── app/
+│   ├── layout.tsx              # Root layout with sidebar
+│   ├── page.tsx                # Dashboard with stats
+│   ├── globals.css             # Tailwind imports
+│   ├── settings/page.tsx       # Bot configuration
+│   ├── files/page.tsx          # File browser
+│   └── api/
+│       ├── settings/route.ts   # Settings CRUD
+│       ├── files/
+│       │   ├── route.ts        # List/update/delete files
+│       │   ├── upload/route.ts # Upload to Telegram
+│       │   └── download/route.ts # Get download URL
+│       └── folders/route.ts    # Folder CRUD
+├── components/
+│   ├── Sidebar.tsx             # Navigation sidebar
+│   ├── DropZone.tsx            # Drag & drop upload
+│   ├── FileCard.tsx            # File display card
+│   └── FolderCard.tsx          # Folder display card
+├── hooks/
+│   └── useFileUpload.ts        # Upload state management
+├── lib/
+│   ├── telegram.ts             # Telegram Bot API wrapper
+│   └── utils.ts                # Utility functions
+└── db/
+    ├── schema.ts               # Drizzle schema
+    ├── index.ts                # Database client
+    ├── migrate.ts              # Migration runner
+    └── migrations/             # Generated migrations
 ```
 
 ## Key Design Patterns
 
-### 1. App Router Pattern
+### 1. Telegram as Storage Backend
 
-Uses Next.js App Router with file-based routing:
-```
-src/app/
-├── page.tsx           # Route: /
-├── about/page.tsx     # Route: /about
-├── blog/
-│   ├── page.tsx       # Route: /blog
-│   └── [slug]/page.tsx # Route: /blog/:slug
-└── api/
-    └── route.ts       # API Route: /api
-```
+Files are sent to a private Telegram group via Bot API. The app stores:
+- `telegram_file_id` - For retrieving files later
+- `telegram_message_id` - For deleting messages
+- File metadata (name, size, type) in SQLite
 
-### 2. Component Organization Pattern (When Expanding)
+### 2. Client-Side State Management
 
-```
-src/components/
-├── ui/                # Reusable UI components (Button, Card, etc.)
-├── layout/            # Layout components (Header, Footer)
-├── sections/          # Page sections (Hero, Features, etc.)
-└── forms/             # Form components
-```
-
-### 3. Server Components by Default
-
-All components are Server Components unless marked with `"use client"`:
-```tsx
-// Server Component (default) - can fetch data, access DB
-export default function Page() {
-  return <div>Server rendered</div>;
-}
-
-// Client Component - for interactivity
-"use client";
-export default function Counter() {
-  const [count, setCount] = useState(0);
-  return <button onClick={() => setCount(c => c + 1)}>{count}</button>;
-}
-```
-
-### 4. Layout Pattern
-
-Layouts wrap pages and can be nested:
-```tsx
-// src/app/layout.tsx - Root layout
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  );
-}
-
-// src/app/dashboard/layout.tsx - Nested layout
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex">
-      <Sidebar />
-      <main>{children}</main>
-    </div>
-  );
-}
-```
-
-## Styling Conventions
-
-### Tailwind CSS Usage
-- Utility classes directly on elements
-- Component composition for repeated patterns
-- Responsive: `sm:`, `md:`, `lg:`, `xl:`
-
-### Common Patterns
-```tsx
-// Container
-<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
-// Responsive grid
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
-// Flexbox centering
-<div className="flex items-center justify-center">
-```
-
-## File Naming Conventions
-
-- Components: PascalCase (`Button.tsx`, `Header.tsx`)
-- Utilities: camelCase (`utils.ts`, `helpers.ts`)
-- Pages/Routes: lowercase (`page.tsx`, `layout.tsx`)
-- Directories: kebab-case (`api-routes/`) or lowercase (`components/`)
-
-## State Management
-
-For simple needs:
 - `useState` for local component state
-- `useContext` for shared state
-- Server Components for data fetching
+- Custom hooks (`useFileUpload`) for complex upload logic
+- Toast notifications for user feedback
+- No external state management library needed
 
-For complex needs (add when necessary):
-- Zustand for client state
-- React Query for server state
+### 3. API Route Pattern
+
+All API routes follow REST conventions:
+- `GET` - List/retrieve resources
+- `POST` - Create resources
+- `PATCH` - Update resources
+- `DELETE` - Delete resources
+
+### 4. Folder Navigation
+
+Folders use a parent-child relationship with breadcrumbs for navigation. URL query params (`?folder=123`) track current folder.
