@@ -119,7 +119,7 @@ export default function SettingsPage() {
       setWaitingConfirm(true);
       fetchStatus();
 
-      window.location.href = link;
+      window.open(link, "_blank");
       showToast("success", "Opened Telegram. Tap send, then come back here.");
     } catch (err) {
       console.error("Connect error:", err);
