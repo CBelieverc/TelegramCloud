@@ -33,6 +33,7 @@ export default function SettingsPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [waitingConfirm, setWaitingConfirm] = useState(false);
   const [telegramLink, setTelegramLink] = useState("");
+  const [registrationCode, setRegistrationCode] = useState("");
   const [botUsername, setBotUsername] = useState("");
   const [dbError, setDbError] = useState<string | null>(null);
   const [toast, setToast] = useState<{
@@ -102,6 +103,7 @@ export default function SettingsPage() {
         `https://t.me/${effectiveUsername}?start=${data.registrationCode}`;
 
       setTelegramLink(link);
+      setRegistrationCode(data.registrationCode);
       setWaitingConfirm(true);
       fetchStatus();
 
@@ -129,6 +131,7 @@ export default function SettingsPage() {
         showToast("success", "Telegram connected successfully!");
         setWaitingConfirm(false);
         setTelegramLink("");
+        setRegistrationCode("");
         fetchStatus();
       } else {
         showToast("error", data.error || "Connection not confirmed yet");
@@ -151,6 +154,7 @@ export default function SettingsPage() {
     setActionLoading(true);
     setWaitingConfirm(false);
     setTelegramLink("");
+    setRegistrationCode("");
     try {
       const res = await fetch("/api/user", { method: "DELETE" });
       if (res.ok) {
@@ -331,22 +335,24 @@ export default function SettingsPage() {
                   Waiting for confirmation
                 </p>
                 <p className="text-xs text-blue-400/60 mt-0.5">
-                  Tap the button below to open Telegram and send the command
+                  Open your bot in Telegram, tap Send, then come back here
                 </p>
               </div>
             </div>
 
-            {user?.registrationCode && (
-              <div className="space-y-3">
-                {(() => {
-                  const link =
-                    telegramLink ||
-                    (effectiveUsername
-                      ? `https://t.me/${effectiveUsername}?start=${user.registrationCode}`
-                      : "");
+            <div className="space-y-3">
+              {(() => {
+                const code = registrationCode || user?.registrationCode || "";
+                const username = effectiveUsername;
+                const link =
+                  telegramLink ||
+                  (username && code
+                    ? `https://t.me/${username}?start=${code}`
+                    : "");
 
-                  if (link) {
-                    return (
+                return (
+                  <>
+                    {link && (
                       <a
                         href={link}
                         target="_blank"
@@ -354,32 +360,37 @@ export default function SettingsPage() {
                         className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 transition-colors"
                       >
                         <ExternalLink className="w-4 h-4" />
-                        Open in Telegram
+                        Open @{username || "your bot"} in Telegram
                       </a>
-                    );
-                  }
-                  return null;
-                })()}
+                    )}
 
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-blue-300 font-mono">
-                    /start {user.registrationCode}
-                  </code>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(
-                        `/start ${user.registrationCode}`
-                      );
-                      showToast("success", "Copied!");
-                    }}
-                    className="p-3 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-600 transition-colors"
-                    title="Copy command"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            )}
+                    {code && (
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-blue-300 font-mono">
+                          /start {code}
+                        </code>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(`/start ${code}`);
+                            showToast("success", "Copied!");
+                          }}
+                          className="p-3 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-600 transition-colors"
+                          title="Copy command"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+
+                    {!link && !code && (
+                      <p className="text-xs text-neutral-500 text-center py-2">
+                        Connection in progress...
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
 
             <div className="flex gap-3">
               <button
@@ -394,6 +405,7 @@ export default function SettingsPage() {
                 onClick={() => {
                   setWaitingConfirm(false);
                   setTelegramLink("");
+                  setRegistrationCode("");
                   fetchStatus();
                 }}
                 className="px-4 py-2 bg-neutral-800 text-neutral-400 text-sm rounded-lg hover:bg-neutral-700 transition-colors"
