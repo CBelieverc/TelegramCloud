@@ -24,7 +24,8 @@ export async function GET() {
       botConfigured: isBotConfigured(),
       linkedAt: user.linkedAt,
     });
-  } catch {
+  } catch (err) {
+    console.error("GET /api/user error:", err);
     return NextResponse.json(
       { error: "Failed to fetch user status" },
       { status: 500 }
@@ -43,13 +44,6 @@ export async function POST() {
       );
     }
 
-    if (!isBotConfigured()) {
-      return NextResponse.json(
-        { error: "Bot is not configured. Set TELEGRAM_BOT_TOKEN env var." },
-        { status: 400 }
-      );
-    }
-
     const code = generateRegistrationCode();
 
     await db
@@ -58,22 +52,35 @@ export async function POST() {
       .where(eq(users.id, user.id));
 
     let botUsername = "";
-    try {
-      botUsername = await getBotUsername();
-    } catch {}
+    let telegramLink = "";
 
-    const telegramLink = botUsername
-      ? `https://t.me/${botUsername}?start=${code}`
-      : "";
+    if (isBotConfigured()) {
+      try {
+        botUsername = await getBotUsername();
+      } catch (err) {
+        console.error("Failed to get bot username:", err);
+      }
+
+      if (botUsername) {
+        telegramLink = `https://t.me/${botUsername}?start=${code}`;
+      }
+    }
 
     return NextResponse.json({
       registrationCode: code,
       botUsername,
       telegramLink,
+      botConfigured: isBotConfigured(),
     });
-  } catch {
+  } catch (err) {
+    console.error("POST /api/user error:", err);
     return NextResponse.json(
-      { error: "Failed to generate registration code" },
+      {
+        error:
+          err instanceof Error
+            ? err.message
+            : "Failed to generate registration code",
+      },
       { status: 500 }
     );
   }
@@ -83,19 +90,6 @@ export async function PATCH(request: Request) {
   try {
     const body = await request.json();
     const { action } = body;
-
-    if (action === "create-group") {
-      const user = await getOrCreateUser();
-
-      if (!user.telegramGroupChatId) {
-        return NextResponse.json(
-          { error: "Not linked to Telegram yet" },
-          { status: 400 }
-        );
-      }
-
-      return NextResponse.json({ success: true });
-    }
 
     if (action === "confirm") {
       const user = await getOrCreateUser();
@@ -120,7 +114,8 @@ export async function PATCH(request: Request) {
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
-  } catch {
+  } catch (err) {
+    console.error("PATCH /api/user error:", err);
     return NextResponse.json(
       { error: "Failed to process action" },
       { status: 500 }
@@ -143,7 +138,8 @@ export async function DELETE() {
       .where(eq(users.id, user.id));
 
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error("DELETE /api/user error:", err);
     return NextResponse.json(
       { error: "Failed to disconnect" },
       { status: 500 }

@@ -10,6 +10,7 @@ import {
   Bot,
   ExternalLink,
   Send,
+  Copy,
 } from "lucide-react";
 
 interface UserStatus {
@@ -58,21 +59,28 @@ export default function SettingsPage() {
       const res = await fetch("/api/user", { method: "POST" });
       const data = await res.json();
 
-      if (res.ok && data.telegramLink) {
+      if (!res.ok) {
+        showToast("error", data.error || "Failed to connect");
+        fetchStatus();
+        return;
+      }
+
+      if (data.telegramLink) {
         setWaitingConfirm(true);
         window.open(data.telegramLink, "_blank");
         showToast("success", "Opened Telegram. Tap send, then come back here.");
-      } else if (res.ok) {
+      } else {
         setWaitingConfirm(true);
         showToast(
           "error",
-          "Could not open Telegram automatically. Check bot configuration."
+          data.botConfigured === false
+            ? "Bot not configured. Copy the code and send it to the bot manually."
+            : "Could not get bot link. Copy the code and send it to the bot manually."
         );
-      } else {
-        showToast("error", data.error || "Failed to connect");
       }
       fetchStatus();
-    } catch {
+    } catch (err) {
+      console.error("Connect error:", err);
       showToast("error", "Failed to connect");
     } finally {
       setActionLoading(false);
@@ -245,11 +253,30 @@ export default function SettingsPage() {
                   Waiting for confirmation
                 </p>
                 <p className="text-xs text-blue-400/60 mt-0.5">
-                  Open Telegram, tap send on the /start message, then come back
+                  Send the command below to the bot on Telegram, then come back
                   here
                 </p>
               </div>
             </div>
+
+            {user?.registrationCode && (
+              <div className="flex items-center gap-2">
+                <code className="flex-1 px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-blue-300 font-mono">
+                  /start {user.registrationCode}
+                </code>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      `/start ${user.registrationCode}`
+                    );
+                    showToast("success", "Copied!");
+                  }}
+                  className="p-3 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-600 transition-colors"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             <div className="flex gap-3">
               <button
