@@ -6,11 +6,10 @@ import {
   Link2Off,
   CheckCircle,
   AlertCircle,
-  Copy,
-  ExternalLink,
   Shield,
   Bot,
-  FolderOpen,
+  ExternalLink,
+  Send,
 } from "lucide-react";
 
 interface UserStatus {
@@ -27,6 +26,7 @@ export default function SettingsPage() {
   const [user, setUser] = useState<UserStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [waitingConfirm, setWaitingConfirm] = useState(false);
   const [toast, setToast] = useState<{
     type: "success" | "error";
     message: string;
@@ -58,12 +58,20 @@ export default function SettingsPage() {
       const res = await fetch("/api/user", { method: "POST" });
       const data = await res.json();
 
-      if (res.ok) {
-        showToast("success", "Registration code generated!");
-        fetchStatus();
+      if (res.ok && data.telegramLink) {
+        setWaitingConfirm(true);
+        window.open(data.telegramLink, "_blank");
+        showToast("success", "Opened Telegram. Tap send, then come back here.");
+      } else if (res.ok) {
+        setWaitingConfirm(true);
+        showToast(
+          "error",
+          "Could not open Telegram automatically. Check bot configuration."
+        );
       } else {
-        showToast("error", data.error || "Failed to generate code");
+        showToast("error", data.error || "Failed to connect");
       }
+      fetchStatus();
     } catch {
       showToast("error", "Failed to connect");
     } finally {
@@ -83,6 +91,7 @@ export default function SettingsPage() {
 
       if (res.ok) {
         showToast("success", "Telegram connected successfully!");
+        setWaitingConfirm(false);
         fetchStatus();
       } else {
         showToast("error", data.error || "Connection not confirmed yet");
@@ -103,6 +112,7 @@ export default function SettingsPage() {
       return;
 
     setActionLoading(true);
+    setWaitingConfirm(false);
     try {
       const res = await fetch("/api/user", { method: "DELETE" });
       if (res.ok) {
@@ -113,13 +123,6 @@ export default function SettingsPage() {
       showToast("error", "Failed to disconnect");
     } finally {
       setActionLoading(false);
-    }
-  };
-
-  const copyCode = () => {
-    if (user?.registrationCode) {
-      navigator.clipboard.writeText(`/start ${user.registrationCode}`);
-      showToast("success", "Copied to clipboard!");
     }
   };
 
@@ -233,62 +236,47 @@ export default function SettingsPage() {
               Disconnect Telegram
             </button>
           </div>
-        ) : user?.registrationCode ? (
+        ) : waitingConfirm ? (
           <div className="space-y-4">
-            <p className="text-sm text-neutral-400">
-              Send this command to{" "}
-              <a
-                href={`https://t.me/${process.env.NEXT_PUBLIC_BOT_USERNAME || "the bot"}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:underline inline-flex items-center gap-1"
-              >
-                the bot
-                <ExternalLink className="w-3 h-3" />
-              </a>{" "}
-              on Telegram to create your private storage:
-            </p>
-
-            <div className="flex items-center gap-2">
-              <code className="flex-1 px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-blue-300 font-mono">
-                /start {user.registrationCode}
-              </code>
-              <button
-                onClick={copyCode}
-                className="p-3 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-600 transition-colors"
-              >
-                <Copy className="w-4 h-4" />
-              </button>
+            <div className="flex items-center gap-3 p-3 bg-blue-600/10 border border-blue-600/20 rounded-lg">
+              <Send className="w-5 h-5 text-blue-400 shrink-0" />
+              <div>
+                <p className="text-sm text-blue-200">
+                  Waiting for confirmation
+                </p>
+                <p className="text-xs text-blue-400/60 mt-0.5">
+                  Open Telegram, tap send on the /start message, then come back
+                  here
+                </p>
+              </div>
             </div>
-
-            <p className="text-xs text-neutral-500">
-              After sending the command, the bot will create a private group for
-              your files.
-            </p>
 
             <div className="flex gap-3">
               <button
                 onClick={handleConfirm}
                 disabled={actionLoading}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors"
+                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors"
               >
                 <Link2 className="w-4 h-4" />
                 {actionLoading ? "Checking..." : "Confirm Connection"}
               </button>
               <button
-                onClick={() => fetchStatus()}
+                onClick={() => {
+                  setWaitingConfirm(false);
+                  fetchStatus();
+                }}
                 className="px-4 py-2 bg-neutral-800 text-neutral-400 text-sm rounded-lg hover:bg-neutral-700 transition-colors"
               >
-                Refresh
+                Cancel
               </button>
             </div>
           </div>
         ) : (
           <div className="space-y-4">
             <p className="text-sm text-neutral-400">
-              Connect your Telegram to get a private cloud storage group. The
-              bot will automatically create a private group where your files will
-              be stored.
+              One click to connect. You&rsquo;ll be redirected to Telegram to
+              authorize the bot, which will create a private storage group for
+              you.
             </p>
 
             <button
@@ -296,8 +284,8 @@ export default function SettingsPage() {
               disabled={actionLoading}
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              <Link2 className="w-4 h-4" />
-              {actionLoading ? "Generating..." : "Connect Telegram"}
+              <ExternalLink className="w-4 h-4" />
+              {actionLoading ? "Connecting..." : "Connect Telegram"}
             </button>
           </div>
         )}
@@ -311,8 +299,9 @@ export default function SettingsPage() {
               1
             </span>
             <span>
-              Click <strong className="text-neutral-300">Connect Telegram</strong>{" "}
-              to generate a unique registration code
+              Click{" "}
+              <strong className="text-neutral-300">Connect Telegram</strong> -
+              you&rsquo;ll be redirected to Telegram
             </span>
           </li>
           <li className="flex gap-3">
@@ -320,7 +309,8 @@ export default function SettingsPage() {
               2
             </span>
             <span>
-              Send the code to the bot on Telegram (tap the command to copy)
+              Tap <strong className="text-neutral-300">Send</strong> in
+              Telegram to authorize the bot
             </span>
           </li>
           <li className="flex gap-3">
@@ -328,17 +318,8 @@ export default function SettingsPage() {
               3
             </span>
             <span>
-              The bot automatically creates a private group for your cloud
-              storage
-            </span>
-          </li>
-          <li className="flex gap-3">
-            <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">
-              4
-            </span>
-            <span>
-              Click <strong className="text-neutral-300">Confirm Connection</strong>{" "}
-              to verify and start uploading
+              Come back and click{" "}
+              <strong className="text-neutral-300">Confirm Connection</strong>
             </span>
           </li>
         </ol>

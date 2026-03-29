@@ -2,8 +2,17 @@ const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? "";
 const API_BASE = `https://api.telegram.org/bot${BOT_TOKEN}`;
 const FILE_BASE = `https://api.telegram.org/file/bot${BOT_TOKEN}`;
 
+let cachedBotUsername: string | null = null;
+
 export function isBotConfigured(): boolean {
   return BOT_TOKEN.length > 0;
+}
+
+export async function getBotUsername(): Promise<string> {
+  if (cachedBotUsername) return cachedBotUsername;
+  const me = await telegramApi("getMe", {});
+  cachedBotUsername = me.username as string;
+  return cachedBotUsername;
 }
 
 async function telegramApi(method: string, body: Record<string, unknown>) {

@@ -6,6 +6,7 @@ import {
   createPrivateGroup,
   sendWelcomeMessage,
   isBotConfigured,
+  getBotUsername,
 } from "@/lib/telegram";
 import { eq } from "drizzle-orm";
 
@@ -56,9 +57,19 @@ export async function POST() {
       .set({ registrationCode: code })
       .where(eq(users.id, user.id));
 
+    let botUsername = "";
+    try {
+      botUsername = await getBotUsername();
+    } catch {}
+
+    const telegramLink = botUsername
+      ? `https://t.me/${botUsername}?start=${code}`
+      : "";
+
     return NextResponse.json({
       registrationCode: code,
-      message: `Send /start ${code} to the bot on Telegram to link your account.`,
+      botUsername,
+      telegramLink,
     });
   } catch {
     return NextResponse.json(
