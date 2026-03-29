@@ -1,4 +1,4 @@
-import { db } from "@/db";
+import { db, ensureTablesExist } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { randomBytes } from "crypto";
@@ -6,6 +6,8 @@ import { randomBytes } from "crypto";
 const DEMO_USER_ID = 1;
 
 export async function getOrCreateUser() {
+  await ensureTablesExist();
+
   try {
     const user = await db
       .select()
@@ -17,10 +19,9 @@ export async function getOrCreateUser() {
       return user[0];
     }
   } catch (err) {
-    console.error("getOrCreateUser select failed:", err);
-    throw new Error(
-      `Database error: ${err instanceof Error ? err.message : "unknown"}. Make sure migrations have run.`
-    );
+    const msg = err instanceof Error ? err.message : "unknown";
+    console.error("getOrCreateUser select failed:", msg);
+    throw new Error(`Database query failed: ${msg}`);
   }
 
   try {
@@ -30,10 +31,9 @@ export async function getOrCreateUser() {
       .returning();
     return inserted[0];
   } catch (err) {
-    console.error("getOrCreateUser insert failed:", err);
-    throw new Error(
-      `Failed to create user: ${err instanceof Error ? err.message : "unknown"}`
-    );
+    const msg = err instanceof Error ? err.message : "unknown";
+    console.error("getOrCreateUser insert failed:", msg);
+    throw new Error(`Failed to create user: ${msg}`);
   }
 }
 
