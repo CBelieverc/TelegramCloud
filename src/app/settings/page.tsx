@@ -119,7 +119,7 @@ export default function SettingsPage() {
       setWaitingConfirm(true);
       fetchStatus();
 
-      window.open(link, "_blank");
+      window.location.href = link;
       showToast("success", "Opened Telegram. Tap send, then come back here.");
     } catch (err) {
       console.error("Connect error:", err);
@@ -246,56 +246,49 @@ export default function SettingsPage() {
           </div>
 
           {!effectiveUsername && (
-            <ol className="space-y-2 mb-4">
-              <li className="flex gap-2 text-xs text-neutral-400">
-                <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
-                  1
-                </span>
-                <span>
-                  Open{" "}
-                  <a
-                    href="https://t.me/BotFather"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-400 hover:underline font-medium"
-                  >
-                    @BotFather
-                  </a>{" "}
-                  on Telegram
-                </span>
-              </li>
-              <li className="flex gap-2 text-xs text-neutral-400">
-                <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
-                  2
-                </span>
-                <span>
-                  Send{" "}
-                  <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
-                    /newbot
-                  </code>{" "}
-                  and follow the prompts
-                </span>
-              </li>
-              <li className="flex gap-2 text-xs text-neutral-400">
-                <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
-                  3
-                </span>
-                <span>
-                  Copy the <strong className="text-neutral-300">bot username</strong>{" "}
-                  BotFather gives you (ends with{" "}
-                  <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
-                    _bot
-                  </code>
-                  )
-                </span>
-              </li>
-              <li className="flex gap-2 text-xs text-neutral-400">
-                <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
-                  4
-                </span>
-                <span>Paste the username below</span>
-              </li>
-            </ol>
+            <div className="space-y-3 mb-4">
+              <a
+                href="https://t.me/BotFather"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-neutral-800 text-white text-sm font-medium rounded-lg hover:bg-neutral-700 transition-colors border border-neutral-700"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Open @BotFather in Telegram
+              </a>
+              <ol className="space-y-2">
+                <li className="flex gap-2 text-xs text-neutral-400">
+                  <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                    1
+                  </span>
+                  <span>
+                    Send{" "}
+                    <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
+                      /newbot
+                    </code>{" "}
+                    to @BotFather
+                  </span>
+                </li>
+                <li className="flex gap-2 text-xs text-neutral-400">
+                  <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                    2
+                  </span>
+                  <span>
+                    Follow the prompts, then copy the bot username (ends with{" "}
+                    <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
+                      _bot
+                    </code>
+                    )
+                  </span>
+                </li>
+                <li className="flex gap-2 text-xs text-neutral-400">
+                  <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                    3
+                  </span>
+                  <span>Paste the username below and click Save</span>
+                </li>
+              </ol>
+            </div>
           )}
 
           {effectiveUsername && (
