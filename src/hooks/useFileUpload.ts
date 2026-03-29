@@ -2,6 +2,8 @@
 
 import { useState, useCallback } from "react";
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB Telegram Bot API limit
+
 interface UploadState {
   uploading: boolean;
   progress: number;
@@ -20,11 +22,32 @@ export function useFileUpload(folderId: number | null = null) {
       const files = Array.from(fileList);
       if (files.length === 0) return;
 
+      const oversized = files.filter((f) => f.size > MAX_FILE_SIZE);
+      if (oversized.length > 0) {
+        const names = oversized.map((f) => f.name).join(", ");
+        setState({
+          uploading: false,
+          progress: 0,
+          error: `File${oversized.length > 1 ? "s" : ""} exceed 50MB limit: ${names}`,
+        });
+        return false;
+      }
+
+      const validFiles = files.filter((f) => f.size > 0);
+      if (validFiles.length === 0) {
+        setState({
+          uploading: false,
+          progress: 0,
+          error: "No valid files to upload",
+        });
+        return false;
+      }
+
       setState({ uploading: true, progress: 0, error: null });
 
       try {
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i];
+        for (let i = 0; i < validFiles.length; i++) {
+          const file = validFiles[i];
           const formData = new FormData();
           formData.append("file", file);
           if (folderId) {
@@ -43,7 +66,7 @@ export function useFileUpload(folderId: number | null = null) {
 
           setState((prev) => ({
             ...prev,
-            progress: Math.round(((i + 1) / files.length) * 100),
+            progress: Math.round(((i + 1) / validFiles.length) * 100),
           }));
         }
 

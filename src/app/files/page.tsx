@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { DropZone } from "@/components/DropZone";
 import { FileCard } from "@/components/FileCard";
 import { FolderCard } from "@/components/FolderCard";
+import { ImagePreview } from "@/components/ImagePreview";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import {
   FolderPlus,
@@ -15,6 +15,11 @@ import {
   CheckCircle,
   Search,
   Link2,
+  ArrowUpDown,
+  Trash2,
+  X,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -34,9 +39,11 @@ interface FolderItem {
   parentId: number | null;
 }
 
+type SortField = "name" | "size" | "date";
+type SortDir = "asc" | "desc";
+
 function FilesPageInner() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const folderId = searchParams.get("folder")
     ? parseInt(searchParams.get("folder")!)
     : null;
@@ -53,6 +60,14 @@ function FilesPageInner() {
     message: string;
   } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortField, setSortField] = useState<SortField>("date");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [selectedFiles, setSelectedFiles] = useState<Set<number>>(new Set());
+  const [previewFile, setPreviewFile] = useState<{
+    file: FileItem;
+    url: string;
+  } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const { uploading, progress, uploadFiles } = useFileUpload(folderId);
 
@@ -116,10 +131,38 @@ function FilesPageInner() {
       });
       if (res.ok) {
         showToast("success", "File deleted");
+        setSelectedFiles((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
         fetchData();
       }
     } catch {
       showToast("error", "Failed to delete file");
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedFiles.size === 0) return;
+    const count = selectedFiles.size;
+    if (!confirm(`Delete ${count} file${count > 1 ? "s" : ""}?`)) return;
+
+    setDeleting(true);
+    try {
+      const ids = Array.from(selectedFiles);
+      await Promise.all(
+        ids.map((id) =>
+          fetch(`/api/files/download?id=${id}`, { method: "DELETE" })
+        )
+      );
+      showToast("success", `${count} file${count > 1 ? "s" : ""} deleted`);
+      setSelectedFiles(new Set());
+      fetchData();
+    } catch {
+      showToast("error", "Failed to delete some files");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -132,6 +175,38 @@ function FilesPageInner() {
       }
     } catch {
       showToast("error", "Failed to get download link");
+    }
+  };
+
+  const handlePreview = async (file: FileItem) => {
+    try {
+      const res = await fetch(`/api/files/download?id=${file.id}`);
+      const data = await res.json();
+      if (data.url) {
+        setPreviewFile({ file, url: data.url });
+      }
+    } catch {
+      showToast("error", "Failed to load preview");
+    }
+  };
+
+  const handleSelectFile = (id: number) => {
+    setSelectedFiles((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedFiles.size === filteredFiles.length) {
+      setSelectedFiles(new Set());
+    } else {
+      setSelectedFiles(new Set(filteredFiles.map((f) => f.id)));
     }
   };
 
@@ -191,17 +266,46 @@ function FilesPageInner() {
     return crumbs;
   };
 
-  const filteredFiles = searchQuery
-    ? files.filter((f) =>
-        f.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : files;
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
+
+  const sortFiles = (items: FileItem[]) => {
+    return [...items].sort((a, b) => {
+      let cmp = 0;
+      if (sortField === "name") {
+        cmp = a.name.localeCompare(b.name);
+      } else if (sortField === "size") {
+        cmp = a.size - b.size;
+      } else {
+        cmp =
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  };
+
+  const filteredFiles = sortFiles(
+    searchQuery
+      ? files.filter((f) =>
+          f.name.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      : files
+  );
 
   const filteredFolders = searchQuery
     ? folders.filter((f) =>
         f.name.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : folders;
+
+  const allSelected =
+    filteredFiles.length > 0 && selectedFiles.size === filteredFiles.length;
 
   if (loading) {
     return (
@@ -255,6 +359,15 @@ function FilesPageInner() {
         </div>
       )}
 
+      {previewFile && (
+        <ImagePreview
+          file={previewFile.file}
+          imageUrl={previewFile.url}
+          onClose={() => setPreviewFile(null)}
+          onDownload={handleDownloadFile}
+        />
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Files</h1>
@@ -284,8 +397,8 @@ function FilesPageInner() {
         </button>
       </div>
 
-      <div className="mb-6">
-        <div className="relative">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
           <input
             type="text"
@@ -295,7 +408,66 @@ function FilesPageInner() {
             className="w-full pl-10 pr-4 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-sm text-white placeholder-neutral-500 outline-none focus:border-neutral-600 transition-colors"
           />
         </div>
+
+        <div className="flex items-center gap-1 bg-neutral-900 border border-neutral-800 rounded-lg p-1">
+          {(
+            [
+              ["name", "Name"],
+              ["size", "Size"],
+              ["date", "Date"],
+            ] as [SortField, string][]
+          ).map(([field, label]) => (
+            <button
+              key={field}
+              onClick={() => toggleSort(field)}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                sortField === field
+                  ? "bg-neutral-700 text-white"
+                  : "text-neutral-500 hover:text-neutral-300"
+              }`}
+            >
+              {label}
+              {sortField === field && (
+                <ArrowUpDown
+                  className={`w-3 h-3 ${sortDir === "desc" ? "rotate-180" : ""}`}
+                />
+              )}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {selectedFiles.size > 0 && (
+        <div className="flex items-center gap-3 mb-4 px-4 py-2.5 bg-blue-600/10 border border-blue-600/30 rounded-lg">
+          <button
+            onClick={handleSelectAll}
+            className="text-blue-400 hover:text-blue-300"
+          >
+            {allSelected ? (
+              <CheckSquare className="w-4 h-4" />
+            ) : (
+              <Square className="w-4 h-4" />
+            )}
+          </button>
+          <span className="text-sm text-blue-300">
+            {selectedFiles.size} file{selectedFiles.size > 1 ? "s" : ""} selected
+          </span>
+          <button
+            onClick={handleBulkDelete}
+            disabled={deleting}
+            className="flex items-center gap-1.5 ml-auto px-3 py-1.5 bg-red-600/20 text-red-400 text-xs font-medium rounded-lg hover:bg-red-600/30 disabled:opacity-50 transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {deleting ? "Deleting..." : "Delete Selected"}
+          </button>
+          <button
+            onClick={() => setSelectedFiles(new Set())}
+            className="p-1 text-neutral-500 hover:text-white"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {creatingFolder && (
         <div className="mb-6 flex items-center gap-2">
@@ -353,14 +525,30 @@ function FilesPageInner() {
 
       {filteredFiles.length > 0 && (
         <div>
-          <h2 className="text-sm font-medium text-neutral-400 mb-3">Files</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-medium text-neutral-400">Files</h2>
+            <button
+              onClick={handleSelectAll}
+              className="flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-300 transition-colors"
+            >
+              {allSelected ? (
+                <CheckSquare className="w-3.5 h-3.5" />
+              ) : (
+                <Square className="w-3.5 h-3.5" />
+              )}
+              {allSelected ? "Deselect All" : "Select All"}
+            </button>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {filteredFiles.map((file) => (
               <FileCard
                 key={file.id}
                 file={file}
+                selected={selectedFiles.has(file.id)}
+                onSelect={handleSelectFile}
                 onDelete={handleDeleteFile}
                 onDownload={handleDownloadFile}
+                onPreview={handlePreview}
               />
             ))}
           </div>

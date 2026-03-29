@@ -83,7 +83,7 @@ export function DropZone({ onFilesDropped, uploading, progress }: DropZoneProps)
               Drop files here or click to browse
             </p>
             <p className="text-xs text-neutral-500 mt-1">
-              Files are uploaded to your Telegram group
+              Max 50MB per file &middot; Stored in your Telegram group
             </p>
           </div>
         </div>
