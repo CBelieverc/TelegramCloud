@@ -293,7 +293,7 @@ export default function SettingsPage() {
 
             <button
               onClick={handleConnect}
-              disabled={actionLoading || !user?.botConfigured}
+              disabled={actionLoading}
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Link2 className="w-4 h-4" />
