@@ -1,63 +1,125 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bot, MessageSquare, Save, CheckCircle, AlertCircle, Eye, EyeOff } from "lucide-react";
+import {
+  Link2,
+  Link2Off,
+  CheckCircle,
+  AlertCircle,
+  Copy,
+  ExternalLink,
+  Shield,
+  Bot,
+  FolderOpen,
+} from "lucide-react";
+
+interface UserStatus {
+  id: number;
+  linked: boolean;
+  telegramUserId: string | null;
+  telegramGroupChatId: string | null;
+  registrationCode: string | null;
+  botConfigured: boolean;
+  linkedAt: string | null;
+}
 
 export default function SettingsPage() {
-  const [botToken, setBotToken] = useState("");
-  const [chatId, setChatId] = useState("");
-  const [showToken, setShowToken] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [user, setUser] = useState<UserStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState<{
     type: "success" | "error";
     message: string;
   } | null>(null);
 
-  useEffect(() => {
-    async function fetchSettings() {
-      try {
-        const res = await fetch("/api/settings");
-        const data = await res.json();
-        if (data?.botToken) setBotToken(data.botToken);
-        if (data?.chatId) setChatId(data.chatId);
-      } catch {
-      } finally {
-        setLoading(false);
-      }
+  const showToast = (type: "success" | "error", message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch("/api/user");
+      const data = await res.json();
+      setUser(data);
+    } catch {
+    } finally {
+      setLoading(false);
     }
-    fetchSettings();
+  };
+
+  useEffect(() => {
+    fetchStatus();
   }, []);
 
-  const handleSave = async () => {
-    if (!botToken.trim() || !chatId.trim()) {
-      setToast({ type: "error", message: "Both fields are required" });
-      setTimeout(() => setToast(null), 3000);
-      return;
-    }
-
-    setSaving(true);
+  const handleConnect = async () => {
+    setActionLoading(true);
     try {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          botToken: botToken.trim(),
-          chatId: chatId.trim(),
-        }),
-      });
+      const res = await fetch("/api/user", { method: "POST" });
+      const data = await res.json();
 
       if (res.ok) {
-        setToast({ type: "success", message: "Settings saved successfully" });
+        showToast("success", "Registration code generated!");
+        fetchStatus();
       } else {
-        const data = await res.json();
-        setToast({ type: "error", message: data.error || "Failed to save" });
+        showToast("error", data.error || "Failed to generate code");
       }
     } catch {
-      setToast({ type: "error", message: "Failed to save settings" });
+      showToast("error", "Failed to connect");
     } finally {
-      setSaving(false);
-      setTimeout(() => setToast(null), 3000);
+      setActionLoading(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    setActionLoading(true);
+    try {
+      const res = await fetch("/api/user", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "confirm" }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        showToast("success", "Telegram connected successfully!");
+        fetchStatus();
+      } else {
+        showToast("error", data.error || "Connection not confirmed yet");
+      }
+    } catch {
+      showToast("error", "Failed to confirm");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (
+      !confirm(
+        "Disconnect Telegram? Your files will remain in the Telegram group but won't be accessible from this app."
+      )
+    )
+      return;
+
+    setActionLoading(true);
+    try {
+      const res = await fetch("/api/user", { method: "DELETE" });
+      if (res.ok) {
+        showToast("success", "Disconnected successfully");
+        fetchStatus();
+      }
+    } catch {
+      showToast("error", "Failed to disconnect");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const copyCode = () => {
+    if (user?.registrationCode) {
+      navigator.clipboard.writeText(`/start ${user.registrationCode}`);
+      showToast("success", "Copied to clipboard!");
     }
   };
 
@@ -91,113 +153,166 @@ export default function SettingsPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white">Settings</h1>
         <p className="text-neutral-400 mt-1">
-          Configure your Telegram bot connection
+          Connect your Telegram for unlimited cloud storage
         </p>
       </div>
 
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 mb-6">
-        <h2 className="text-lg font-semibold text-white mb-4">
-          Telegram Configuration
-        </h2>
-
-        <div className="space-y-5">
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-neutral-300 mb-2">
-              <Bot className="w-4 h-4" />
-              Bot Token
-            </label>
-            <div className="relative">
-              <input
-                type={showToken ? "text" : "password"}
-                value={botToken}
-                onChange={(e) => setBotToken(e.target.value)}
-                placeholder="123456789:ABCdefGHIjklMNOpqrSTUvwxYZ"
-                className="w-full px-4 py-2.5 pr-10 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white placeholder-neutral-500 outline-none focus:border-blue-500 transition-colors"
-              />
-              <button
-                type="button"
-                onClick={() => setShowToken(!showToken)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300"
-              >
-                {showToken ? (
-                  <EyeOff className="w-4 h-4" />
-                ) : (
-                  <Eye className="w-4 h-4" />
-                )}
-              </button>
+      {!user?.botConfigured && (
+        <div className="mb-6 p-4 bg-red-600/10 border border-red-600/30 rounded-lg">
+          <div className="flex items-center gap-3">
+            <Bot className="w-5 h-5 text-red-400" />
+            <div>
+              <p className="text-sm font-medium text-red-200">
+                Bot not configured
+              </p>
+              <p className="text-xs text-red-400/70">
+                The server admin needs to set TELEGRAM_BOT_TOKEN environment
+                variable
+              </p>
             </div>
-            <p className="text-xs text-neutral-500 mt-1.5">
-              Create a bot via{" "}
-              <a
-                href="https://t.me/BotFather"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:underline"
-              >
-                @BotFather
-              </a>{" "}
-              and paste the token here
-            </p>
           </div>
+        </div>
+      )}
 
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-neutral-300 mb-2">
-              <MessageSquare className="w-4 h-4" />
-              Chat ID
-            </label>
-            <input
-              type="text"
-              value={chatId}
-              onChange={(e) => setChatId(e.target.value)}
-              placeholder="-1001234567890"
-              className="w-full px-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white placeholder-neutral-500 outline-none focus:border-blue-500 transition-colors"
+      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-white">
+            Telegram Connection
+          </h2>
+          <div
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
+              user?.linked
+                ? "bg-green-600/20 text-green-400"
+                : "bg-neutral-700 text-neutral-400"
+            }`}
+          >
+            <div
+              className={`w-2 h-2 rounded-full ${
+                user?.linked ? "bg-green-400" : "bg-neutral-500"
+              }`}
             />
-            <p className="text-xs text-neutral-500 mt-1.5">
-              Create a private Telegram group, add your bot, then use{" "}
-              <a
-                href="https://t.me/RawDataBot"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:underline"
-              >
-                @RawDataBot
-              </a>{" "}
-              to get the chat ID
-            </p>
+            {user?.linked ? "Connected" : "Not Connected"}
           </div>
         </div>
 
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="mt-6 flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <Save className="w-4 h-4" />
-          {saving ? "Saving..." : "Save Settings"}
-        </button>
+        {user?.linked ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 bg-green-600/10 border border-green-600/20 rounded-lg">
+              <Shield className="w-5 h-5 text-green-400 shrink-0" />
+              <div>
+                <p className="text-sm text-green-200">
+                  Your private cloud storage is active
+                </p>
+                <p className="text-xs text-green-400/60 mt-0.5">
+                  Files are stored in your private Telegram group
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="p-3 bg-neutral-800 rounded-lg">
+                <p className="text-neutral-500 text-xs">Telegram User ID</p>
+                <p className="text-white font-mono mt-0.5">
+                  {user.telegramUserId ?? "N/A"}
+                </p>
+              </div>
+              <div className="p-3 bg-neutral-800 rounded-lg">
+                <p className="text-neutral-500 text-xs">Group Chat ID</p>
+                <p className="text-white font-mono mt-0.5">
+                  {user.telegramGroupChatId ?? "N/A"}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleDisconnect}
+              disabled={actionLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600/20 text-red-400 text-sm font-medium rounded-lg hover:bg-red-600/30 disabled:opacity-50 transition-colors"
+            >
+              <Link2Off className="w-4 h-4" />
+              Disconnect Telegram
+            </button>
+          </div>
+        ) : user?.registrationCode ? (
+          <div className="space-y-4">
+            <p className="text-sm text-neutral-400">
+              Send this command to{" "}
+              <a
+                href={`https://t.me/${process.env.NEXT_PUBLIC_BOT_USERNAME || "the bot"}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:underline inline-flex items-center gap-1"
+              >
+                the bot
+                <ExternalLink className="w-3 h-3" />
+              </a>{" "}
+              on Telegram to create your private storage:
+            </p>
+
+            <div className="flex items-center gap-2">
+              <code className="flex-1 px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-blue-300 font-mono">
+                /start {user.registrationCode}
+              </code>
+              <button
+                onClick={copyCode}
+                className="p-3 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-600 transition-colors"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-neutral-500">
+              After sending the command, the bot will create a private group for
+              your files.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleConfirm}
+                disabled={actionLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors"
+              >
+                <Link2 className="w-4 h-4" />
+                {actionLoading ? "Checking..." : "Confirm Connection"}
+              </button>
+              <button
+                onClick={() => fetchStatus()}
+                className="px-4 py-2 bg-neutral-800 text-neutral-400 text-sm rounded-lg hover:bg-neutral-700 transition-colors"
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-neutral-400">
+              Connect your Telegram to get a private cloud storage group. The
+              bot will automatically create a private group where your files will
+              be stored.
+            </p>
+
+            <button
+              onClick={handleConnect}
+              disabled={actionLoading || !user?.botConfigured}
+              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Link2 className="w-4 h-4" />
+              {actionLoading ? "Generating..." : "Connect Telegram"}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">Setup Guide</h2>
+        <h2 className="text-lg font-semibold text-white mb-4">How It Works</h2>
         <ol className="space-y-3 text-sm text-neutral-400">
           <li className="flex gap-3">
             <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">
               1
             </span>
             <span>
-              Open{" "}
-              <a
-                href="https://t.me/BotFather"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:underline"
-              >
-                @BotFather
-              </a>{" "}
-              on Telegram and create a new bot with{" "}
-              <code className="px-1.5 py-0.5 bg-neutral-800 rounded text-xs">
-                /newbot
-              </code>
+              Click <strong className="text-neutral-300">Connect Telegram</strong>{" "}
+              to generate a unique registration code
             </span>
           </li>
           <li className="flex gap-3">
@@ -205,7 +320,7 @@ export default function SettingsPage() {
               2
             </span>
             <span>
-              Copy the bot token provided by BotFather and paste it above
+              Send the code to the bot on Telegram (tap the command to copy)
             </span>
           </li>
           <li className="flex gap-3">
@@ -213,7 +328,8 @@ export default function SettingsPage() {
               3
             </span>
             <span>
-              Create a new private Telegram group and add your bot as a member
+              The bot automatically creates a private group for your cloud
+              storage
             </span>
           </li>
           <li className="flex gap-3">
@@ -221,24 +337,8 @@ export default function SettingsPage() {
               4
             </span>
             <span>
-              Send a message in the group, then add{" "}
-              <a
-                href="https://t.me/RawDataBot"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:underline"
-              >
-                @RawDataBot
-              </a>{" "}
-              to get the chat ID
-            </span>
-          </li>
-          <li className="flex gap-3">
-            <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">
-              5
-            </span>
-            <span>
-              Copy the chat ID (starts with -100) and paste it above
+              Click <strong className="text-neutral-300">Confirm Connection</strong>{" "}
+              to verify and start uploading
             </span>
           </li>
         </ol>

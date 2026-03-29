@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { files, settings } from "@/db/schema";
+import { files } from "@/db/schema";
 import { getFileUrl, deleteTelegramMessage } from "@/lib/telegram";
-import { eq } from "drizzle-orm";
+import { getOrCreateUser } from "@/lib/user";
+import { eq, and } from "drizzle-orm";
 
 export async function GET(request: Request) {
   try {
+    const user = await getOrCreateUser();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -16,20 +18,10 @@ export async function GET(request: Request) {
       );
     }
 
-    const configResult = await db.select().from(settings).limit(1);
-    const config = configResult[0];
-
-    if (!config) {
-      return NextResponse.json(
-        { error: "Telegram not configured" },
-        { status: 400 }
-      );
-    }
-
     const fileResult = await db
       .select()
       .from(files)
-      .where(eq(files.id, parseInt(id)))
+      .where(and(eq(files.id, parseInt(id)), eq(files.userId, user.id)))
       .limit(1);
     const file = fileResult[0];
 
@@ -37,7 +29,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
-    const url = await getFileUrl(config.botToken, file.telegramFileId);
+    const url = await getFileUrl(file.telegramFileId);
 
     return NextResponse.json({ url, name: file.name, mimeType: file.mimeType });
   } catch {
@@ -50,6 +42,7 @@ export async function GET(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const user = await getOrCreateUser();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -60,13 +53,10 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const configResult = await db.select().from(settings).limit(1);
-    const config = configResult[0];
-
     const fileResult = await db
       .select()
       .from(files)
-      .where(eq(files.id, parseInt(id)))
+      .where(and(eq(files.id, parseInt(id)), eq(files.userId, user.id)))
       .limit(1);
     const file = fileResult[0];
 
@@ -74,11 +64,10 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
-    if (config) {
+    if (user.telegramGroupChatId) {
       try {
         await deleteTelegramMessage(
-          config.botToken,
-          config.chatId,
+          user.telegramGroupChatId,
           file.telegramMessageId
         );
       } catch (e) {
@@ -86,7 +75,9 @@ export async function DELETE(request: Request) {
       }
     }
 
-    await db.delete(files).where(eq(files.id, parseInt(id)));
+    await db
+      .delete(files)
+      .where(and(eq(files.id, parseInt(id)), eq(files.userId, user.id)));
 
     return NextResponse.json({ success: true });
   } catch {

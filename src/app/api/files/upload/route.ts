@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { files, settings } from "@/db/schema";
-import { sendFileToTelegram } from "@/lib/telegram";
-import { writeFile, unlink, mkdir } from "fs/promises";
+import { files } from "@/db/schema";
+import { sendFileToGroup } from "@/lib/telegram";
+import { getOrCreateUser } from "@/lib/user";
+import { writeFile, unlink } from "fs/promises";
 import { join } from "path";
 import { randomUUID } from "crypto";
 import os from "os";
@@ -11,22 +12,21 @@ export async function POST(request: Request) {
   let tempFilePath: string | null = null;
 
   try {
+    const user = await getOrCreateUser();
+
+    if (!user.telegramGroupChatId) {
+      return NextResponse.json(
+        { error: "Connect your Telegram account first in Settings." },
+        { status: 400 }
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const folderId = formData.get("folderId") as string | null;
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
-    }
-
-    const configResult = await db.select().from(settings).limit(1);
-    const config = configResult[0];
-
-    if (!config) {
-      return NextResponse.json(
-        { error: "Telegram not configured. Go to Settings first." },
-        { status: 400 }
-      );
     }
 
     const tempDir = os.tmpdir();
@@ -37,9 +37,8 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(bytes);
     await writeFile(tempFilePath, buffer);
 
-    const result = await sendFileToTelegram(
-      config.botToken,
-      config.chatId,
+    const result = await sendFileToGroup(
+      user.telegramGroupChatId,
       tempFilePath,
       file.name,
       file.type || "application/octet-stream"
@@ -48,6 +47,7 @@ export async function POST(request: Request) {
     const newFile = await db
       .insert(files)
       .values({
+        userId: user.id,
         name: file.name,
         originalName: file.name,
         mimeType: file.type || "application/octet-stream",

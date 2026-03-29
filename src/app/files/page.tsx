@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { DropZone } from "@/components/DropZone";
 import { FileCard } from "@/components/FileCard";
@@ -13,7 +14,9 @@ import {
   AlertCircle,
   CheckCircle,
   Search,
+  Link2,
 } from "lucide-react";
+import Link from "next/link";
 
 interface FileItem {
   id: number;
@@ -31,8 +34,9 @@ interface FolderItem {
   parentId: number | null;
 }
 
-export default function FilesPage() {
+function FilesPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const folderId = searchParams.get("folder")
     ? parseInt(searchParams.get("folder")!)
     : null;
@@ -41,6 +45,7 @@ export default function FilesPage() {
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [allFolders, setAllFolders] = useState<FolderItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [connected, setConnected] = useState<boolean | null>(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [toast, setToast] = useState<{
@@ -62,13 +67,22 @@ export default function FilesPage() {
   const fetchData = useCallback(async () => {
     try {
       const params = folderId ? `?folderId=${folderId}` : "";
-      const [filesRes, foldersRes] = await Promise.all([
+      const [filesRes, foldersRes, userRes] = await Promise.all([
         fetch(`/api/files${params}`),
         fetch("/api/folders"),
+        fetch("/api/user"),
       ]);
 
       const filesData = await filesRes.json();
       const allFoldersData = await foldersRes.json();
+      const userData = await userRes.json();
+
+      setConnected(!!userData?.linked);
+
+      if (!userData?.linked) {
+        setLoading(false);
+        return;
+      }
 
       setFiles(filesData.files ?? []);
       setFolders(filesData.folders ?? []);
@@ -193,6 +207,31 @@ export default function FilesPage() {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (connected === false) {
+    return (
+      <div className="p-8">
+        <div className="max-w-md mx-auto text-center py-16">
+          <div className="w-16 h-16 rounded-full bg-amber-600/20 flex items-center justify-center mx-auto mb-4">
+            <Link2 className="w-8 h-8 text-amber-400" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">
+            Connect Telegram First
+          </h2>
+          <p className="text-neutral-400 mb-6">
+            Link your Telegram account to create a private cloud storage group
+            where your files will be stored.
+          </p>
+          <Link
+            href="/settings"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 transition-colors"
+          >
+            Go to Settings
+          </Link>
+        </div>
       </div>
     );
   }
@@ -339,4 +378,8 @@ export default function FilesPage() {
       )}
     </div>
   );
+}
+
+export default function FilesPage() {
+  return <FilesPageInner />;
 }

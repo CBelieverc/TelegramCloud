@@ -2,45 +2,47 @@
 
 ## Purpose
 
-TelegramCloud is a web application that turns Telegram into an unlimited cloud storage backend. Users create a private Telegram group, add a bot, and use the application to upload, download, and organize files with a clean web interface. Telegram's unlimited storage is leveraged as the storage layer.
+TelegramCloud is a web application that uses a single shared Telegram bot to create private cloud storage groups for users. The app developer creates one Telegram bot, and users connect to it to get their own private cloud storage group - completely free with unlimited storage.
 
 ## Target Users
 
 - Users who want unlimited free cloud storage
-- Developers who already use Telegram and want a file manager
-- Anyone needing large file storage without paying for cloud services
+- Anyone who already uses Telegram
+- People who want a Google Drive alternative without paying
 
 ## Core Use Case
 
-1. User creates a private Telegram group and a bot via BotFather
-2. User configures the bot token and chat ID in the app settings
-3. User uploads files through the web interface
-4. Files are sent to the private Telegram group via the Bot API
-5. File metadata (name, size, type, telegram file ID) is stored locally in SQLite
-6. User can browse, search, organize into folders, download, and delete files
+1. Developer creates a Telegram bot via BotFather and sets `TELEGRAM_BOT_TOKEN` env var
+2. User visits the web app and clicks "Connect Telegram"
+3. User sends a registration code to the bot on Telegram
+4. The bot automatically creates a private group for that user's files
+5. User uploads files through the web interface
+6. Files are stored in the user's private Telegram group
+7. User can browse, organize, download, and delete files
 
 ## Key Requirements
 
 ### Must Have
 
-- Telegram Bot API integration for file upload/download
-- SQLite database for file metadata and folder structure
-- File browser with folder navigation
-- Drag & drop file upload
-- File download via Telegram
-- Search functionality
-- Settings page for bot configuration
+- Single centralized bot (token from env var)
+- Per-user private Telegram groups (created automatically)
+- Registration code linking flow
+- Bot webhook for handling `/start CODE` commands
+- File upload/download/delete via Telegram Bot API
+- Folder organization and file metadata in SQLite
+- Search across files and folders
 
 ### Nice to Have
 
+- Multi-user authentication
 - File preview for images
 - Bulk operations
 - File sharing via links
 
 ## Constraints
 
-- Telegram Bot API has a 50MB file upload limit per file
-- Bot must be a member of the private group
-- Chat ID must be the group's ID (starts with -100)
+- Telegram Bot API has 50MB file upload limit per file
+- `createNewChannel` is an undocumented Bot API method (may change)
+- Bot must be able to create groups (may need specific permissions)
 - Package manager: Bun
 - Framework: Next.js 16 + React 19 + Tailwind CSS 4

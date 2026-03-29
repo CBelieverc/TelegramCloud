@@ -10,14 +10,14 @@ import {
   HardDrive,
   ArrowRight,
   Upload,
-  Settings,
+  Link2,
 } from "lucide-react";
 
 interface Stats {
   totalFiles: number;
   totalFolders: number;
   totalSize: number;
-  configured: boolean;
+  linked: boolean;
 }
 
 export default function DashboardPage() {
@@ -25,28 +25,28 @@ export default function DashboardPage() {
     totalFiles: 0,
     totalFolders: 0,
     totalSize: 0,
-    configured: false,
+    linked: false,
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchStats() {
       try {
-        const [filesRes, foldersRes, settingsRes] = await Promise.all([
+        const [filesRes, foldersRes, userRes] = await Promise.all([
           fetch("/api/files"),
           fetch("/api/folders"),
-          fetch("/api/settings"),
+          fetch("/api/user"),
         ]);
 
         const filesData = await filesRes.json();
         const foldersData = await foldersRes.json();
-        const settingsData = await settingsRes.json();
+        const userData = await userRes.json();
 
         setStats({
           totalFiles: filesData.files?.length ?? 0,
           totalFolders: foldersData?.length ?? 0,
           totalSize: filesData.totalSize ?? 0,
-          configured: !!(settingsData?.botToken && settingsData?.chatId),
+          linked: !!userData?.linked,
         });
       } catch {
       } finally {
@@ -73,17 +73,18 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {!stats.configured && (
+      {!stats.linked && (
         <div className="mb-8 p-4 bg-amber-600/10 border border-amber-600/30 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Settings className="w-5 h-5 text-amber-400" />
+              <Link2 className="w-5 h-5 text-amber-400" />
               <div>
                 <p className="text-sm font-medium text-amber-200">
-                  Telegram not configured
+                  Telegram not connected
                 </p>
                 <p className="text-xs text-amber-400/70">
-                  Configure your bot token and chat ID to start uploading files
+                  Connect your Telegram to start uploading files to your private
+                  cloud storage
                 </p>
               </div>
             </div>
@@ -91,7 +92,7 @@ export default function DashboardPage() {
               href="/settings"
               className="px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-500 transition-colors"
             >
-              Configure
+              Connect
             </Link>
           </div>
         </div>

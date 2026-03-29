@@ -1,36 +1,33 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { files, folders } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { files, folders, users } from "@/db/schema";
+import { eq, and, sql } from "drizzle-orm";
+import { getOrCreateUser } from "@/lib/user";
 
 export async function GET(request: Request) {
   try {
+    const user = await getOrCreateUser();
     const { searchParams } = new URL(request.url);
     const folderId = searchParams.get("folderId");
 
-    const allFiles = folderId
-      ? await db
-          .select()
-          .from(files)
-          .where(eq(files.folderId, parseInt(folderId)))
-      : await db
-          .select()
-          .from(files)
-          .where(sql`${files.folderId} IS NULL`);
+    const fileQuery = folderId
+      ? and(eq(files.userId, user.id), eq(files.folderId, parseInt(folderId)))
+      : and(eq(files.userId, user.id), sql`${files.folderId} IS NULL`);
 
-    const allFolders = folderId
-      ? await db
-          .select()
-          .from(folders)
-          .where(eq(folders.parentId, parseInt(folderId)))
-      : await db
-          .select()
-          .from(folders)
-          .where(sql`${folders.parentId} IS NULL`);
+    const folderQuery = folderId
+      ? and(
+          eq(folders.userId, user.id),
+          eq(folders.parentId, parseInt(folderId))
+        )
+      : and(eq(folders.userId, user.id), sql`${folders.parentId} IS NULL`);
+
+    const allFiles = await db.select().from(files).where(fileQuery);
+    const allFolders = await db.select().from(folders).where(folderQuery);
 
     const totalSize = await db
       .select({ total: sql<number>`SUM(${files.size})` })
-      .from(files);
+      .from(files)
+      .where(eq(files.userId, user.id));
 
     return NextResponse.json({
       files: allFiles,
@@ -47,6 +44,7 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const user = await getOrCreateUser();
     const body = await request.json();
     const { id, name, folderId } = body;
 
@@ -61,7 +59,10 @@ export async function PATCH(request: Request) {
     if (name !== undefined) updates.name = name;
     if (folderId !== undefined) updates.folderId = folderId;
 
-    await db.update(files).set(updates).where(eq(files.id, id));
+    await db
+      .update(files)
+      .set(updates)
+      .where(and(eq(files.id, id), eq(files.userId, user.id)));
 
     return NextResponse.json({ success: true });
   } catch {
@@ -74,6 +75,7 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const user = await getOrCreateUser();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -84,7 +86,9 @@ export async function DELETE(request: Request) {
       );
     }
 
-    await db.delete(files).where(eq(files.id, parseInt(id)));
+    await db
+      .delete(files)
+      .where(and(eq(files.id, parseInt(id)), eq(files.userId, user.id)));
 
     return NextResponse.json({ success: true });
   } catch {

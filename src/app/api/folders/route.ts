@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { folders } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { getOrCreateUser } from "@/lib/user";
+import { eq, and } from "drizzle-orm";
 
 export async function GET() {
   try {
-    const allFolders = await db.select().from(folders);
+    const user = await getOrCreateUser();
+    const allFolders = await db
+      .select()
+      .from(folders)
+      .where(eq(folders.userId, user.id));
     return NextResponse.json(allFolders);
   } catch {
     return NextResponse.json(
@@ -17,6 +22,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const user = await getOrCreateUser();
     const body = await request.json();
     const { name, parentId } = body;
 
@@ -30,6 +36,7 @@ export async function POST(request: Request) {
     const newFolder = await db
       .insert(folders)
       .values({
+        userId: user.id,
         name,
         parentId: parentId ?? null,
       })
@@ -46,6 +53,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const user = await getOrCreateUser();
     const body = await request.json();
     const { id, name } = body;
 
@@ -56,7 +64,10 @@ export async function PATCH(request: Request) {
       );
     }
 
-    await db.update(folders).set({ name }).where(eq(folders.id, id));
+    await db
+      .update(folders)
+      .set({ name })
+      .where(and(eq(folders.id, id), eq(folders.userId, user.id)));
 
     return NextResponse.json({ success: true });
   } catch {
@@ -69,6 +80,7 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const user = await getOrCreateUser();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -79,7 +91,11 @@ export async function DELETE(request: Request) {
       );
     }
 
-    await db.delete(folders).where(eq(folders.id, parseInt(id)));
+    await db
+      .delete(folders)
+      .where(
+        and(eq(folders.id, parseInt(id)), eq(folders.userId, user.id))
+      );
 
     return NextResponse.json({ success: true });
   } catch {

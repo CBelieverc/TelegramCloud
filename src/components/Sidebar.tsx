@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Cloud, FolderOpen, Settings, Home } from "lucide-react";
 
 const navItems = [
@@ -12,6 +13,14 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/user")
+      .then((r) => r.json())
+      .then((data) => setConnected(!!data?.linked))
+      .catch(() => {});
+  }, []);
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-neutral-900 border-r border-neutral-800 flex flex-col">
@@ -22,7 +31,16 @@ export function Sidebar() {
           </div>
           <div>
             <h1 className="text-lg font-semibold text-white">TelegramCloud</h1>
-            <p className="text-xs text-neutral-400">Unlimited Storage</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <div
+                className={`w-1.5 h-1.5 rounded-full ${
+                  connected ? "bg-green-400" : "bg-neutral-500"
+                }`}
+              />
+              <p className="text-xs text-neutral-400">
+                {connected ? "Connected" : "Not connected"}
+              </p>
+            </div>
           </div>
         </div>
       </div>
