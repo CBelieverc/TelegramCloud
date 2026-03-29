@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
+import { db, isDbConfigured } from "@/db";
 import { users } from "@/db/schema";
 import {
   createPrivateGroup,
@@ -47,6 +47,14 @@ export async function POST(request: Request) {
       const code = parts.length > 1 ? parts[1].trim().toUpperCase() : null;
 
       if (code) {
+        if (!isDbConfigured()) {
+          await sendTelegramMessage(
+            chatId,
+            "Bot is starting up. Please try again in a moment."
+          );
+          return NextResponse.json({ ok: true });
+        }
+
         const matchedUsers = await db
           .select()
           .from(users)
@@ -136,6 +144,14 @@ export async function POST(request: Request) {
     }
 
     if (text === "/status") {
+      if (!isDbConfigured()) {
+        await sendTelegramMessage(
+          chatId,
+          "Bot is starting up. Please try again in a moment."
+        );
+        return NextResponse.json({ ok: true });
+      }
+
       const matchedUser = await db
         .select()
         .from(users)
