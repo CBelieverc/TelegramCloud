@@ -6,6 +6,5 @@ $ next dev
 - Environments: .env.local
 
 ✓ Starting...
-✓ Ready in 1437ms
- GET /api/bots 200 in 514ms (compile: 463ms, render: 51ms)
- GET /api/bots 200 in 30ms (compile: 16ms, render: 14ms)
+✓ Ready in 1533ms
+ GET /api/bots 200 in 506ms (compile: 464ms, render: 42ms)
