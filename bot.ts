@@ -9,19 +9,36 @@ if (!TOKEN) {
 
 const API = `https://api.telegram.org/bot${TOKEN}`;
 
- 
 let db: any = null;
- 
 let users: any = null;
 
 try {
-  const { createDatabase } = await import("@kilocode/app-builder-db");
+  const { Database } = await import("bun:sqlite");
+  const { drizzle } = await import("drizzle-orm/bun-sqlite");
   const schema = await import("@/db/schema");
-  db = createDatabase(schema);
+
+  const sqlite = new Database("./data.db");
+  sqlite.exec("PRAGMA journal_mode=WAL");
+  sqlite.exec("PRAGMA foreign_keys=ON");
+
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      telegram_user_id TEXT,
+      telegram_group_chat_id TEXT,
+      registration_code TEXT,
+      bot_username TEXT,
+      linked_at INTEGER,
+      created_at INTEGER DEFAULT (unixepoch())
+    );
+  `);
+
+  db = drizzle(sqlite, { schema });
   users = schema.users;
   console.log("[bot] Database connected");
-} catch {
-  console.log("[bot] Database not configured - bot will run without DB features");
+} catch (err) {
+  console.error("[bot] Database error:", err);
+  process.exit(1);
 }
 
 function isDbReady(): boolean {
@@ -64,11 +81,6 @@ async function handleMessage(message: TelegramMessage) {
     const code = parts.length > 1 ? parts[1].trim().toUpperCase() : null;
 
     if (code) {
-      if (!isDbReady()) {
-        await sendMessage(chatId, "Bot is starting up. Please try again in a moment.");
-        return;
-      }
-
       const { eq } = await import("drizzle-orm");
 
       const matchedUsers = await db
@@ -133,11 +145,6 @@ async function handleMessage(message: TelegramMessage) {
   }
 
   if (text === "/status") {
-    if (!isDbReady()) {
-      await sendMessage(chatId, "Bot is starting up. Please try again in a moment.");
-      return;
-    }
-
     const { eq } = await import("drizzle-orm");
 
     const matchedUser = await db
@@ -154,7 +161,7 @@ async function handleMessage(message: TelegramMessage) {
         chatId,
         `Your cloud storage is active!\n\n` +
           `User ID: #${user.id}\n` +
-          `Group ID: ${user.telegramGroupChatId}`
+          `Chat ID: ${user.telegramGroupChatId}`
       );
     }
     return;

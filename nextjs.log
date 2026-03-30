@@ -6,6 +6,5 @@ $ next dev
 - Environments: .env.local
 
 ✓ Starting...
-⚠ Turbopack's filesystem cache has been deleted because we previously detected an internal error in Turbopack. Builds or page loads may be slower as a result.
-✓ Ready in 1636ms
- GET /api/user 200 in 1911ms (compile: 1786ms, render: 125ms)
+✓ Ready in 1538ms
+ GET /api/user 200 in 1002ms (compile: 944ms, render: 59ms)

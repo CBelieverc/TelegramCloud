@@ -1,70 +1,79 @@
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import Database from "better-sqlite3";
 import * as schema from "./schema";
+import path from "path";
 
- 
-let _db: any = null;
-let _dbError: Error | null = null;
-let _attempted = false;
+const dbPath = path.join(process.cwd(), "data.db");
 
- 
-function initDb(): any {
+let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
+let _initialized = false;
+
+function getDb() {
   if (_db) return _db;
-  if (_attempted && _dbError) throw _dbError;
-  _attempted = true;
-  try {
-    // Use require to defer module evaluation
-     
-    const { createDatabase } = require("@kilocode/app-builder-db");
-    _db = createDatabase(schema);
-    return _db;
-  } catch (err) {
-    _dbError = err instanceof Error ? err : new Error(String(err));
-    throw _dbError;
+
+  const sqlite = new Database(dbPath);
+  sqlite.pragma("journal_mode = WAL");
+  sqlite.pragma("foreign_keys = ON");
+
+  _db = drizzle(sqlite, { schema });
+
+  // Auto-create tables if they don't exist
+  if (!_initialized) {
+    try {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          telegram_user_id TEXT,
+          telegram_group_chat_id TEXT,
+          registration_code TEXT,
+          bot_username TEXT,
+          linked_at INTEGER,
+          created_at INTEGER DEFAULT (unixepoch())
+        );
+        CREATE TABLE IF NOT EXISTS folders (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          name TEXT NOT NULL,
+          parent_id INTEGER,
+          created_at INTEGER DEFAULT (unixepoch())
+        );
+        CREATE TABLE IF NOT EXISTS files (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          name TEXT NOT NULL,
+          original_name TEXT NOT NULL,
+          mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+          size INTEGER NOT NULL DEFAULT 0,
+          telegram_file_id TEXT NOT NULL,
+          telegram_message_id INTEGER NOT NULL,
+          folder_id INTEGER,
+          created_at INTEGER DEFAULT (unixepoch())
+        );
+      `);
+      _initialized = true;
+    } catch (err) {
+      console.error("Table creation error:", err);
+    }
   }
+
+  return _db;
 }
 
-export function isDbConfigured(): boolean {
-  try {
-    initDb();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// Lazy proxy - defers database creation until first actual use
-// This allows the module to be imported even when DB is not configured
 export const db = new Proxy({} as Record<string, unknown>, {
   get(_target, prop) {
-    const database = initDb();
-    const value = database[prop as string];
+    const database = getDb();
+    const value = (database as unknown as Record<string | symbol, unknown>)[prop];
     if (typeof value === "function") {
       return value.bind(database);
     }
     return value;
   },
-}) as unknown as ReturnType<typeof import("@kilocode/app-builder-db").createDatabase<typeof schema>>;
+}) as unknown as ReturnType<typeof drizzle<typeof schema>>;
 
-let initialized = false;
+export function isDbConfigured(): boolean {
+  return true;
+}
 
 export async function ensureTablesExist() {
-  if (initialized) return;
-  if (!isDbConfigured()) return;
-
-  try {
-    await (db as any).select().from(schema.users).limit(1);
-    initialized = true;
-    return;
-  } catch {
-    // Table doesn't exist, try to run migrations
-    console.log("Users table not found, attempting migration...");
-  }
-
-  try {
-    const { runMigrations } = await import("@kilocode/app-builder-db");
-    await runMigrations(db, {}, { migrationsFolder: "./src/db/migrations" });
-    console.log("Migrations completed");
-    initialized = true;
-  } catch (err) {
-    console.error("Migration failed:", err);
-  }
+  getDb();
 }
