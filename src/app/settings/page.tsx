@@ -236,58 +236,74 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {!user?.linked && !effectiveUsername && (
+      {!user?.linked && (
         <div className="mb-6 p-5 bg-neutral-900 border border-neutral-800 rounded-xl">
           <div className="flex items-center gap-3 mb-4">
             <Bot className="w-5 h-5 text-blue-400" />
             <h2 className="text-sm font-semibold text-white">
-              Step 1: Create Your Bot
+              {effectiveUsername ? "Bot Username" : "Step 1: Create Your Bot"}
             </h2>
           </div>
 
-          <div className="space-y-3 mb-4">
-            <a
-              href="https://t.me/BotFather"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-neutral-800 text-white text-sm font-medium rounded-lg hover:bg-neutral-700 transition-colors border border-neutral-700"
-            >
-              <ExternalLink className="w-4 h-4" />
-              Open @BotFather in Telegram
-            </a>
-            <ol className="space-y-2">
-              <li className="flex gap-2 text-xs text-neutral-400">
-                <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
-                  1
-                </span>
-                <span>
-                  Send{" "}
-                  <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
-                    /newbot
-                  </code>{" "}
-                  to @BotFather
-                </span>
-              </li>
-              <li className="flex gap-2 text-xs text-neutral-400">
-                <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
-                  2
-                </span>
-                <span>
-                  Follow the prompts, then copy the bot username (ends with{" "}
-                  <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
-                    _bot
-                  </code>
-                  )
-                </span>
-              </li>
-              <li className="flex gap-2 text-xs text-neutral-400">
-                <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
-                  3
-                </span>
-                <span>Paste the username below and click Save</span>
-              </li>
-            </ol>
-          </div>
+          {!effectiveUsername && (
+            <div className="space-y-3 mb-4">
+              <a
+                href="https://t.me/BotFather"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-neutral-800 text-white text-sm font-medium rounded-lg hover:bg-neutral-700 transition-colors border border-neutral-700"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Open @BotFather in Telegram
+              </a>
+              <ol className="space-y-2">
+                <li className="flex gap-2 text-xs text-neutral-400">
+                  <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                    1
+                  </span>
+                  <span>
+                    Send{" "}
+                    <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
+                      /newbot
+                    </code>{" "}
+                    to @BotFather
+                  </span>
+                </li>
+                <li className="flex gap-2 text-xs text-neutral-400">
+                  <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                    2
+                  </span>
+                  <span>
+                    Follow the prompts, then copy the bot username (ends with{" "}
+                    <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
+                      _bot
+                    </code>
+                    )
+                  </span>
+                </li>
+                <li className="flex gap-2 text-xs text-neutral-400">
+                  <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                    3
+                  </span>
+                  <span>Paste the username below and click Save</span>
+                </li>
+              </ol>
+            </div>
+          )}
+
+          {effectiveUsername && (
+            <p className="text-xs text-neutral-500 mb-3">
+              Your bot:{" "}
+              <a
+                href={`https://t.me/${effectiveUsername}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:underline"
+              >
+                @{effectiveUsername}
+              </a>
+            </p>
+          )}
 
           <div className="flex items-center gap-2">
             <div className="relative flex-1">

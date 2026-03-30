@@ -11,3 +11,8 @@ $ next dev
  POST /api/user 200 in 265ms (compile: 171ms, render: 94ms)
  GET / 200 in 49ms (compile: 5ms, render: 44ms)
  GET / 200 in 73ms (compile: 11ms, render: 63ms)
+ POST /api/user 400 in 394ms (compile: 292ms, render: 102ms)
+ GET /api/user 200 in 24ms (compile: 6ms, render: 18ms)
+ DELETE /api/user 200 in 20ms (compile: 3ms, render: 16ms)
+ GET /api/user 200 in 16ms (compile: 6ms, render: 11ms)
+ POST /api/user 200 in 36ms (compile: 6ms, render: 30ms)
