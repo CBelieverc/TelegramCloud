@@ -2,18 +2,18 @@
 
 import { useEffect, useState, useCallback } from "react";
 import {
-  Link2,
-  Link2Off,
   CheckCircle,
   AlertCircle,
   Shield,
   Bot,
   ExternalLink,
-  Send,
   Copy,
   Plus,
   Trash2,
   Star,
+  RefreshCw,
+  Link2Off,
+  Zap,
 } from "lucide-react";
 
 interface BotItem {
@@ -38,12 +38,9 @@ export default function SettingsPage() {
   const [user, setUser] = useState<UserStatus | null>(null);
   const [bots, setBots] = useState<BotItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [newBotUsername, setNewBotUsername] = useState("");
   const [addingBot, setAddingBot] = useState(false);
-  const [waitingConfirm, setWaitingConfirm] = useState<number | null>(null);
-  const [pendingCode, setPendingCode] = useState("");
-  const [pendingLink, setPendingLink] = useState("");
   const [toast, setToast] = useState<{
     type: "success" | "error";
     message: string;
@@ -63,28 +60,13 @@ export default function SettingsPage() {
       const userData = await userRes.json();
       const botsData = await botsRes.json();
       if (userRes.ok) setUser(userData);
-      if (botsRes.ok) {
-        const fetchedBots: BotItem[] = botsData.bots ?? [];
-        setBots(fetchedBots);
-
-        // Clear waitingConfirm if that bot is now linked or gone
-        if (waitingConfirm) {
-          const pendingBot = fetchedBots.find(
-            (b: BotItem) => b.id === waitingConfirm
-          );
-          if (!pendingBot || pendingBot.linked) {
-            setWaitingConfirm(null);
-            setPendingCode("");
-            setPendingLink("");
-          }
-        }
-      }
+      if (botsRes.ok) setBots(botsData.bots ?? []);
     } catch {
       showToast("error", "Failed to load data");
     } finally {
       setLoading(false);
     }
-  }, [waitingConfirm]);
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -93,7 +75,7 @@ export default function SettingsPage() {
   const handleAddBot = async () => {
     const cleaned = newBotUsername.replace("@", "").trim();
     if (!cleaned) return;
-    setActionLoading(true);
+    setActionLoading(-1);
     try {
       const res = await fetch("/api/bots", {
         method: "POST",
@@ -107,21 +89,17 @@ export default function SettingsPage() {
       }
       setNewBotUsername("");
       setAddingBot(false);
-      setPendingCode(data.bot.registrationCode);
-      setPendingLink(data.telegramLink);
-      setWaitingConfirm(data.bot.id);
-      window.open(data.telegramLink, "_blank");
-      showToast("success", "Bot added! Send the code in Telegram.");
-      fetchData();
+      showToast("success", "Bot added! Copy the code and send it to the bot.");
+      await fetchData();
     } catch {
       showToast("error", "Failed to add bot");
     } finally {
-      setActionLoading(false);
+      setActionLoading(null);
     }
   };
 
   const handleActivate = async (botId: number) => {
-    setActionLoading(true);
+    setActionLoading(botId);
     try {
       await fetch("/api/bots", {
         method: "POST",
@@ -129,16 +107,16 @@ export default function SettingsPage() {
         body: JSON.stringify({ action: "activate", botId }),
       });
       showToast("success", "Bot activated");
-      fetchData();
+      await fetchData();
     } catch {
       showToast("error", "Failed to activate");
     } finally {
-      setActionLoading(false);
+      setActionLoading(null);
     }
   };
 
   const handleConfirm = async (botId: number) => {
-    setActionLoading(true);
+    setActionLoading(botId);
     try {
       const res = await fetch("/api/bots", {
         method: "PATCH",
@@ -148,51 +126,56 @@ export default function SettingsPage() {
       const data = await res.json();
       if (res.ok) {
         showToast("success", "Bot confirmed!");
-        setWaitingConfirm(null);
-        setPendingCode("");
-        setPendingLink("");
-        fetchData();
+        await fetchData();
       } else {
-        showToast("error", data.error || "Not linked yet");
+        showToast("error", data.error || "Not linked yet. Send /start CODE first.");
       }
     } catch {
       showToast("error", "Failed to confirm");
     } finally {
-      setActionLoading(false);
+      setActionLoading(null);
     }
   };
 
-  const handleConnect = (bot: BotItem) => {
-    if (!bot.registrationCode) return;
-    const link = `https://t.me/${bot.botUsername}?start=${bot.registrationCode}`;
-    setPendingCode(bot.registrationCode);
-    setPendingLink(link);
-    setWaitingConfirm(bot.id);
-    window.open(link, "_blank");
+  const handleGenerateCode = async (botId: number) => {
+    setActionLoading(botId);
+    try {
+      const res = await fetch("/api/bots", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "regenerate-code", botId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast("success", "New code generated!");
+        await fetchData();
+      } else {
+        showToast("error", data.error || "Failed to generate code");
+      }
+    } catch {
+      showToast("error", "Failed to generate code");
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const handleDelete = async (botId: number) => {
     if (!confirm("Remove this bot?")) return;
-    setActionLoading(true);
+    setActionLoading(botId);
     try {
       await fetch(`/api/bots?botId=${botId}`, { method: "DELETE" });
       showToast("success", "Bot removed");
-      if (waitingConfirm === botId) {
-        setWaitingConfirm(null);
-        setPendingCode("");
-        setPendingLink("");
-      }
-      fetchData();
+      await fetchData();
     } catch {
       showToast("error", "Failed to remove");
     } finally {
-      setActionLoading(false);
+      setActionLoading(null);
     }
   };
 
   const handleDisconnect = async (botId: number) => {
-    if (!confirm("Disconnect this bot? You can reconnect it later.")) return;
-    setActionLoading(true);
+    if (!confirm("Disconnect this bot?")) return;
+    setActionLoading(botId);
     try {
       const res = await fetch("/api/bots", {
         method: "PATCH",
@@ -201,14 +184,14 @@ export default function SettingsPage() {
       });
       if (res.ok) {
         showToast("success", "Bot disconnected");
-        fetchData();
+        await fetchData();
       } else {
         showToast("error", "Failed to disconnect");
       }
     } catch {
       showToast("error", "Failed to disconnect");
     } finally {
-      setActionLoading(false);
+      setActionLoading(null);
     }
   };
 
@@ -242,11 +225,20 @@ export default function SettingsPage() {
         </div>
       )}
 
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">Settings</h1>
-        <p className="text-neutral-400 mt-1">
-          Manage your Telegram bots for cloud storage
-        </p>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Settings</h1>
+          <p className="text-neutral-400 mt-1">
+            Manage your Telegram bots for cloud storage
+          </p>
+        </div>
+        <button
+          onClick={fetchData}
+          className="flex items-center gap-2 px-3 py-2 bg-neutral-800 text-neutral-400 text-sm rounded-lg hover:bg-neutral-700 transition-colors border border-neutral-700"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Refresh
+        </button>
       </div>
 
       {/* Add Bot */}
@@ -296,7 +288,7 @@ export default function SettingsPage() {
               </div>
               <button
                 onClick={handleAddBot}
-                disabled={!newBotUsername.trim() || actionLoading}
+                disabled={!newBotUsername.trim() || actionLoading === -1}
                 className="px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors"
               >
                 Add
@@ -315,72 +307,99 @@ export default function SettingsPage() {
         )}
       </div>
 
-      {/* Waiting Confirm */}
-      {waitingConfirm && (() => {
-        const pendingBot = bots.find((b) => b.id === waitingConfirm && !b.linked);
-        if (!pendingBot) return null;
-        const code = pendingBot.registrationCode || pendingCode;
-        const link = `https://t.me/${pendingBot.botUsername}?start=${code}`;
-        return (
-        <div className="mb-6 p-5 bg-blue-600/10 border border-blue-600/30 rounded-xl">
-          <div className="flex items-center gap-3 mb-4">
-            <Send className="w-5 h-5 text-blue-400" />
-            <h2 className="text-sm font-semibold text-blue-200">
-              Waiting for confirmation
-            </h2>
-          </div>
+      {/* Unlinked Bots - show code directly */}
+      {unlinkedBots.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-neutral-400 mb-3">
+            Not Connected ({unlinkedBots.length})
+          </h2>
           <div className="space-y-3">
-            {link && (
-              <a
-                href={link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 transition-colors"
+            {unlinkedBots.map((bot) => (
+              <div
+                key={bot.id}
+                className="p-5 bg-neutral-900 border border-neutral-800 rounded-xl"
               >
-                <ExternalLink className="w-4 h-4" />
-                Open in Telegram
-              </a>
-            )}
-            {code && (
-              <div className="flex items-center gap-2">
-                <code className="flex-1 px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-blue-300 font-mono">
-                  /start {code}
-                </code>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(`/start ${code}`);
-                    showToast("success", "Copied!");
-                  }}
-                  className="p-3 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-600 transition-colors"
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-lg bg-neutral-800 flex items-center justify-center">
+                    <Bot className="w-5 h-5 text-neutral-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">
+                      @{bot.botUsername}
+                    </p>
+                    <p className="text-xs text-neutral-500">
+                      Send the code below to this bot on Telegram
+                    </p>
+                  </div>
+                </div>
+
+                {/* Registration Code */}
+                <div className="mb-4">
+                  <label className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1 block font-medium">
+                    Registration Code
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-lg text-blue-400 font-mono font-bold tracking-wider">
+                      /start {bot.registrationCode}
+                    </code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(
+                          `/start ${bot.registrationCode}`
+                        );
+                        showToast("success", "Copied!");
+                      }}
+                      className="p-3 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-600 transition-colors"
+                      title="Copy"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Telegram Link */}
+                <a
+                  href={`https://t.me/${bot.botUsername}?start=${bot.registrationCode}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 transition-colors mb-3"
                 >
-                  <Copy className="w-4 h-4" />
-                </button>
+                  <ExternalLink className="w-4 h-4" />
+                  Open @{bot.botUsername} in Telegram
+                </a>
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleConfirm(bot.id)}
+                    disabled={actionLoading === bot.id}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-green-600/20 text-green-400 text-xs font-medium rounded-lg hover:bg-green-600/30 disabled:opacity-50 transition-colors"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    {actionLoading === bot.id ? "Checking..." : "Confirm Connection"}
+                  </button>
+                  <button
+                    onClick={() => handleGenerateCode(bot.id)}
+                    disabled={actionLoading === bot.id}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-neutral-800 text-neutral-400 text-xs font-medium rounded-lg hover:bg-neutral-700 disabled:opacity-50 transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    New Code
+                  </button>
+                  <button
+                    onClick={() => handleDelete(bot.id)}
+                    disabled={actionLoading === bot.id}
+                    className="p-2 text-neutral-500 hover:text-red-400 hover:bg-red-600/10 rounded-lg transition-colors ml-auto"
+                    title="Remove"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-            )}
-          </div>
-          <div className="flex gap-3 mt-4">
-            <button
-              onClick={() => handleConfirm(waitingConfirm)}
-              disabled={actionLoading}
-              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors"
-            >
-              <Link2 className="w-4 h-4" />
-              {actionLoading ? "Checking..." : "Confirm Connection"}
-            </button>
-            <button
-              onClick={() => {
-                setWaitingConfirm(null);
-                setPendingCode("");
-                setPendingLink("");
-              }}
-              className="px-4 py-2 bg-neutral-800 text-neutral-400 text-sm rounded-lg hover:bg-neutral-700 transition-colors"
-            >
-              Cancel
-            </button>
+            ))}
           </div>
         </div>
-        );
-      })()}
+      )}
 
       {/* Connected Bots */}
       {linkedBots.length > 0 && (
@@ -430,7 +449,7 @@ export default function SettingsPage() {
                     {!bot.isActive && (
                       <button
                         onClick={() => handleActivate(bot.id)}
-                        disabled={actionLoading}
+                        disabled={actionLoading === bot.id}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 text-blue-400 text-xs font-medium rounded-lg hover:bg-blue-600/30 transition-colors"
                       >
                         <Star className="w-3.5 h-3.5" />
@@ -439,64 +458,15 @@ export default function SettingsPage() {
                     )}
                     <button
                       onClick={() => handleDisconnect(bot.id)}
-                      disabled={actionLoading}
+                      disabled={actionLoading === bot.id}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 text-neutral-400 text-xs font-medium rounded-lg hover:bg-red-600/10 hover:text-red-400 transition-colors"
-                      title="Disconnect"
                     >
                       <Link2Off className="w-3.5 h-3.5" />
                       Disconnect
                     </button>
                     <button
                       onClick={() => handleDelete(bot.id)}
-                      disabled={actionLoading}
-                      className="p-2 text-neutral-500 hover:text-red-400 hover:bg-red-600/10 rounded-lg transition-colors"
-                      title="Remove"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Unlinked Bots */}
-      {unlinkedBots.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-sm font-semibold text-neutral-400 mb-3">
-            Not Connected ({unlinkedBots.length})
-          </h2>
-          <div className="space-y-3">
-            {unlinkedBots.map((bot) => (
-              <div
-                key={bot.id}
-                className="p-4 bg-neutral-900 border border-neutral-800 rounded-xl"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-neutral-800 flex items-center justify-center">
-                      <Bot className="w-5 h-5 text-neutral-500" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-neutral-300">
-                        @{bot.botUsername}
-                      </p>
-                      <p className="text-xs text-neutral-500">Not connected</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleConnect(bot)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-500 transition-colors"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      Connect
-                    </button>
-                    <button
-                      onClick={() => handleDelete(bot.id)}
-                      disabled={actionLoading}
+                      disabled={actionLoading === bot.id}
                       className="p-2 text-neutral-500 hover:text-red-400 hover:bg-red-600/10 rounded-lg transition-colors"
                       title="Remove"
                     >
