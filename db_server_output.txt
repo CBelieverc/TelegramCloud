@@ -1,0 +1,6 @@
+[db-server] SQLite HTTP server running on http://127.0.0.1:5432
+[db-server] Database file: ./data.db
+[db-server] Token: local-dev-token
+[db-server] Add to .env.local:
+  DB_URL=http://127.0.0.1:5432
+  DB_TOKEN=local-dev-token
