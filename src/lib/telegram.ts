@@ -28,40 +28,6 @@ async function telegramApi(method: string, body: Record<string, unknown>) {
   return data.result;
 }
 
-export async function createPrivateGroup(
-  userId: number
-): Promise<{ chatId: string; inviteLink: string }> {
-  const title = `My Cloud Storage`;
-
-  const result = await telegramApi("createNewChannel", {
-    title,
-    is_channel: false,
-  });
-
-  const chatId = String(result.id);
-
-  try {
-    await telegramApi("setChatDescription", {
-      chat_id: chatId,
-      description: `Private cloud storage for user #${userId}`,
-    });
-  } catch {
-    // description may fail, not critical
-  }
-
-  let inviteLink = "";
-  try {
-    const linkResult = await telegramApi("createChatInviteLink", {
-      chat_id: chatId,
-    });
-    inviteLink = linkResult.invite_link ?? "";
-  } catch {
-    // invite link may fail
-  }
-
-  return { chatId, inviteLink };
-}
-
 export async function sendFileToGroup(
   chatId: string,
   filePath: string,

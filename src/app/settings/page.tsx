@@ -158,7 +158,7 @@ export default function SettingsPage() {
   const handleDisconnect = async () => {
     if (
       !confirm(
-        "Disconnect Telegram? Your files will remain in the Telegram group but won't be accessible from this app."
+        "Disconnect Telegram? Your files will remain in the bot chat but won't be accessible from this app."
       )
     )
       return;
@@ -236,74 +236,58 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {!user?.linked && (
+      {!user?.linked && !effectiveUsername && (
         <div className="mb-6 p-5 bg-neutral-900 border border-neutral-800 rounded-xl">
           <div className="flex items-center gap-3 mb-4">
             <Bot className="w-5 h-5 text-blue-400" />
             <h2 className="text-sm font-semibold text-white">
-              {effectiveUsername ? "Bot Username" : "Step 1: Create Your Bot"}
+              Step 1: Create Your Bot
             </h2>
           </div>
 
-          {!effectiveUsername && (
-            <div className="space-y-3 mb-4">
-              <a
-                href="https://t.me/BotFather"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-neutral-800 text-white text-sm font-medium rounded-lg hover:bg-neutral-700 transition-colors border border-neutral-700"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Open @BotFather in Telegram
-              </a>
-              <ol className="space-y-2">
-                <li className="flex gap-2 text-xs text-neutral-400">
-                  <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
-                    1
-                  </span>
-                  <span>
-                    Send{" "}
-                    <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
-                      /newbot
-                    </code>{" "}
-                    to @BotFather
-                  </span>
-                </li>
-                <li className="flex gap-2 text-xs text-neutral-400">
-                  <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
-                    2
-                  </span>
-                  <span>
-                    Follow the prompts, then copy the bot username (ends with{" "}
-                    <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
-                      _bot
-                    </code>
-                    )
-                  </span>
-                </li>
-                <li className="flex gap-2 text-xs text-neutral-400">
-                  <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
-                    3
-                  </span>
-                  <span>Paste the username below and click Save</span>
-                </li>
-              </ol>
-            </div>
-          )}
-
-          {effectiveUsername && (
-            <p className="text-xs text-neutral-500 mb-3">
-              Your bot:{" "}
-              <a
-                href={`https://t.me/${effectiveUsername}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:underline"
-              >
-                @{effectiveUsername}
-              </a>
-            </p>
-          )}
+          <div className="space-y-3 mb-4">
+            <a
+              href="https://t.me/BotFather"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-neutral-800 text-white text-sm font-medium rounded-lg hover:bg-neutral-700 transition-colors border border-neutral-700"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Open @BotFather in Telegram
+            </a>
+            <ol className="space-y-2">
+              <li className="flex gap-2 text-xs text-neutral-400">
+                <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                  1
+                </span>
+                <span>
+                  Send{" "}
+                  <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
+                    /newbot
+                  </code>{" "}
+                  to @BotFather
+                </span>
+              </li>
+              <li className="flex gap-2 text-xs text-neutral-400">
+                <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                  2
+                </span>
+                <span>
+                  Follow the prompts, then copy the bot username (ends with{" "}
+                  <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
+                    _bot
+                  </code>
+                  )
+                </span>
+              </li>
+              <li className="flex gap-2 text-xs text-neutral-400">
+                <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                  3
+                </span>
+                <span>Paste the username below and click Save</span>
+              </li>
+            </ol>
+          </div>
 
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
@@ -370,7 +354,7 @@ export default function SettingsPage() {
                   Your private cloud storage is active
                 </p>
                 <p className="text-xs text-green-400/60 mt-0.5">
-                  Files are stored in your private Telegram group
+                  Files are stored in your Telegram bot chat
                 </p>
               </div>
             </div>
@@ -383,7 +367,7 @@ export default function SettingsPage() {
                 </p>
               </div>
               <div className="p-3 bg-neutral-800 rounded-lg">
-                <p className="text-neutral-500 text-xs">Group Chat ID</p>
+                <p className="text-neutral-500 text-xs">Storage Chat ID</p>
                 <p className="text-white font-mono mt-0.5">
                   {user.telegramGroupChatId ?? "N/A"}
                 </p>

@@ -3,7 +3,6 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { getOrCreateUser, generateRegistrationCode } from "@/lib/user";
 import {
-  createPrivateGroup,
   sendWelcomeMessage,
   isBotConfigured,
   getBotUsername,

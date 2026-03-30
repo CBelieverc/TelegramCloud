@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { db, isDbConfigured } from "@/db";
 import { users } from "@/db/schema";
 import {
-  createPrivateGroup,
   sendWelcomeMessage,
   isBotConfigured,
 } from "@/lib/telegram";
