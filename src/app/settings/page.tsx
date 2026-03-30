@@ -63,13 +63,28 @@ export default function SettingsPage() {
       const userData = await userRes.json();
       const botsData = await botsRes.json();
       if (userRes.ok) setUser(userData);
-      if (botsRes.ok) setBots(botsData.bots ?? []);
+      if (botsRes.ok) {
+        const fetchedBots: BotItem[] = botsData.bots ?? [];
+        setBots(fetchedBots);
+
+        // Clear waitingConfirm if that bot is now linked or gone
+        if (waitingConfirm) {
+          const pendingBot = fetchedBots.find(
+            (b: BotItem) => b.id === waitingConfirm
+          );
+          if (!pendingBot || pendingBot.linked) {
+            setWaitingConfirm(null);
+            setPendingCode("");
+            setPendingLink("");
+          }
+        }
+      }
     } catch {
       showToast("error", "Failed to load data");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [waitingConfirm]);
 
   useEffect(() => {
     fetchData();
@@ -301,7 +316,12 @@ export default function SettingsPage() {
       </div>
 
       {/* Waiting Confirm */}
-      {waitingConfirm && (
+      {waitingConfirm && (() => {
+        const pendingBot = bots.find((b) => b.id === waitingConfirm && !b.linked);
+        if (!pendingBot) return null;
+        const code = pendingBot.registrationCode || pendingCode;
+        const link = `https://t.me/${pendingBot.botUsername}?start=${code}`;
+        return (
         <div className="mb-6 p-5 bg-blue-600/10 border border-blue-600/30 rounded-xl">
           <div className="flex items-center gap-3 mb-4">
             <Send className="w-5 h-5 text-blue-400" />
@@ -310,9 +330,9 @@ export default function SettingsPage() {
             </h2>
           </div>
           <div className="space-y-3">
-            {pendingLink && (
+            {link && (
               <a
-                href={pendingLink}
+                href={link}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 transition-colors"
@@ -321,14 +341,14 @@ export default function SettingsPage() {
                 Open in Telegram
               </a>
             )}
-            {pendingCode && (
+            {code && (
               <div className="flex items-center gap-2">
                 <code className="flex-1 px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-blue-300 font-mono">
-                  /start {pendingCode}
+                  /start {code}
                 </code>
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText(`/start ${pendingCode}`);
+                    navigator.clipboard.writeText(`/start ${code}`);
                     showToast("success", "Copied!");
                   }}
                   className="p-3 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-600 transition-colors"
@@ -359,7 +379,8 @@ export default function SettingsPage() {
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Connected Bots */}
       {linkedBots.length > 0 && (
