@@ -9,9 +9,9 @@ if (!TOKEN) {
 
 const API = `https://api.telegram.org/bot${TOKEN}`;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let db: any = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let users: any = null;
 
 try {

@@ -1,18 +1,18 @@
 import * as schema from "./schema";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let _db: any = null;
 let _dbError: Error | null = null;
 let _attempted = false;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function initDb(): any {
   if (_db) return _db;
   if (_attempted && _dbError) throw _dbError;
   _attempted = true;
   try {
     // Use require to defer module evaluation
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+     
     const { createDatabase } = require("@kilocode/app-builder-db");
     _db = createDatabase(schema);
     return _db;
