@@ -5,9 +5,9 @@ export {};
 const DB_PATH = process.env.DB_PATH || "./data.db";
 const DB_TOKEN = process.env.DB_TOKEN || "local-dev-token";
 
-const db = new Database(DB_PATH, { create: true });
-db.exec("PRAGMA journal_mode=WAL");
-db.exec("PRAGMA foreign_keys=ON");
+const sqlite = new Database(DB_PATH, { create: true });
+sqlite.exec("PRAGMA journal_mode=WAL");
+sqlite.exec("PRAGMA foreign_keys=ON");
 
 const server = Bun.serve({
   port: 5432,
@@ -53,67 +53,89 @@ const server = Bun.serve({
   },
 });
 
+// Convert object row to array based on column names in SQL
+// Drizzle sqlite-proxy expects rows as arrays (indexed by column position)
+function rowToArray(row: Record<string, unknown>, columns: string[]): unknown[] {
+  return columns.map((col) => {
+    const val = row[col];
+    return typeof val === "bigint" ? Number(val) : val;
+  });
+}
+
+// Extract column names from a SELECT query
+function extractColumns(sql: string): string[] {
+  const match = sql.match(/^\s*SELECT\s+(.*?)\s+FROM\s/i);
+  if (!match) return [];
+  return match[1].split(",").map((c) => {
+    // Remove quotes and whitespace, get the column name
+    const cleaned = c.trim().replace(/^["']|["']$/g, "").trim();
+    // Handle "table"."column" or "column" formats
+    const parts = cleaned.split(".");
+    return parts[parts.length - 1].replace(/^["']|["']$/g, "");
+  });
+}
+
 function execute(sql: string, params: unknown[], method: string) {
-  // Handle CREATE TABLE / migrations
+  // Handle CREATE TABLE / migrations / DDL
   if (/^\s*(CREATE|ALTER|DROP)\s/i.test(sql)) {
-    db.exec(sql);
+    sqlite.exec(sql);
     return { rows: [] };
   }
 
-  // Handle INSERT ... RETURNING
+  // Handle INSERT ... RETURNING (returns rows as arrays for Drizzle mapping)
   if (/^\s*INSERT\s/i.test(sql) && /RETURNING/i.test(sql)) {
-    const stmt = db.prepare(sql);
+    const stmt = sqlite.prepare(sql);
     const row = stmt.get(...params);
-    return { rows: row ? [normalizeRow(row)] : [] };
+    if (!row) return { rows: [] };
+    const columns = extractColumns(sql);
+    if (columns.length > 0) {
+      return { rows: [rowToArray(row as Record<string, unknown>, columns)] };
+    }
+    return { rows: [row] };
   }
 
   // Handle INSERT
   if (/^\s*INSERT\s/i.test(sql)) {
-    const stmt = db.prepare(sql);
+    const stmt = sqlite.prepare(sql);
     const result = stmt.run(...params);
     return { rows: [{ id: result.lastInsertRowid, changes: result.changes }] };
   }
 
   // Handle UPDATE
   if (/^\s*UPDATE\s/i.test(sql)) {
-    const stmt = db.prepare(sql);
+    const stmt = sqlite.prepare(sql);
     const result = stmt.run(...params);
     return { rows: [{ changes: result.changes }] };
   }
 
   // Handle DELETE
   if (/^\s*DELETE\s/i.test(sql)) {
-    const stmt = db.prepare(sql);
+    const stmt = sqlite.prepare(sql);
     const result = stmt.run(...params);
     return { rows: [{ changes: result.changes }] };
   }
 
-  // SELECT / get / all
+  // SELECT queries - return rows as arrays for Drizzle mapResultRow
+  const columns = extractColumns(sql);
+
   if (method === "get") {
-    const stmt = db.prepare(sql);
+    const stmt = sqlite.prepare(sql);
     const row = stmt.get(...params);
-    return { rows: row ? [normalizeRow(row)] : [] };
+    if (!row) return { rows: [] };
+    if (columns.length > 0) {
+      return { rows: [rowToArray(row as Record<string, unknown>, columns)] };
+    }
+    return { rows: [row] };
   }
 
-  const stmt = db.prepare(sql);
+  const stmt = sqlite.prepare(sql);
   const rows = stmt.all(...params);
-  return { rows: rows.map(normalizeRow) };
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function normalizeRow(row: any): any {
-  if (!row || typeof row !== "object") return row;
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(row)) {
-    // Convert BigInt to number
-    result[key] = typeof value === "bigint" ? Number(value) : value;
+  if (columns.length > 0) {
+    return { rows: rows.map((r) => rowToArray(r as Record<string, unknown>, columns)) };
   }
-  return result;
+  return { rows };
 }
 
 console.log(`[db-server] SQLite HTTP server running on http://127.0.0.1:${server.port}`);
 console.log(`[db-server] Database file: ${DB_PATH}`);
 console.log(`[db-server] Token: ${DB_TOKEN}`);
-console.log(`[db-server] Add to .env.local:`);
-console.log(`  DB_URL=http://127.0.0.1:${server.port}`);
-console.log(`  DB_TOKEN=${DB_TOKEN}`);

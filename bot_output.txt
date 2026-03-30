@@ -1,3 +1,15 @@
 [bot] Database connected
 [bot] Starting TelegramCloud Bot...
 [bot] Polling started. Bot is listening for messages...
+[bot] Telegram API error (createNewChannel): Not Found
+[bot] Failed to create group:  95 |       try {
+ 96 |         const result = await telegramApi("createNewChannel", {
+ 97 |           title: "My Cloud Storage",
+ 98 |           is_channel: false,
+ 99 |         });
+100 |         if (!result.ok) throw new Error(result.description);
+                                        ^
+error: Not Found
+      at handleMessage (/workspace/f5ce9a5b-86be-4491-a7cd-713760e33a2c/sessions/agent_d9dc768d-883e-4cb6-bc51-f2c44d455312/bot.ts:100:35)
+      at async poll (/workspace/f5ce9a5b-86be-4491-a7cd-713760e33a2c/sessions/agent_d9dc768d-883e-4cb6-bc51-f2c44d455312/bot.ts:218:19)
+
