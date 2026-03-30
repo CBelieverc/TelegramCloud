@@ -8,3 +8,4 @@ $ next dev
 ✓ Starting...
 ✓ Ready in 1533ms
  GET /api/bots 200 in 506ms (compile: 464ms, render: 42ms)
+ GET /api/bots 200 in 45ms (compile: 24ms, render: 21ms)
