@@ -1,29 +1,59 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
-import { bots } from "@/db/schema";
-import { getOrCreateUser } from "@/lib/user";
-import { eq, and } from "drizzle-orm";
 import { randomBytes } from "crypto";
+
+// Use bun:sqlite directly to avoid stale data from better-sqlite3
+function getDb() {
+   
+  const { Database } = require("bun:sqlite");
+  return new Database("./data.db");
+}
+
+function getDemoUserId(): number {
+  const db = getDb();
+  const user = db
+    .prepare("SELECT id FROM users WHERE id = 1")
+    .get() as { id: number } | undefined;
+  if (!user) {
+    const result = db
+      .prepare("INSERT INTO users (id) VALUES (1)")
+      .run();
+    return 1;
+  }
+  return user.id;
+}
 
 export async function GET() {
   try {
-    const user = await getOrCreateUser();
-    const allBots = await db
-      .select()
-      .from(bots)
-      .where(eq(bots.userId, user.id));
+    const userId = getDemoUserId();
+    const db = getDb();
+    const allBots = db
+      .prepare(
+        "SELECT id, bot_username, telegram_user_id, telegram_chat_id, registration_code, active, linked_at, created_at FROM bots WHERE user_id = ?"
+      )
+      .all(userId) as Array<{
+      id: number;
+      bot_username: string;
+      telegram_user_id: string | null;
+      telegram_chat_id: string | null;
+      registration_code: string | null;
+      active: number;
+      linked_at: number | null;
+      created_at: number;
+    }>;
 
     return NextResponse.json({
       bots: allBots.map((b) => ({
         id: b.id,
-        botUsername: b.botUsername,
-        telegramUserId: b.telegramUserId,
-        telegramChatId: b.telegramChatId,
-        registrationCode: b.registrationCode,
-        isActive: b.isActive,
-        linked: !!b.telegramChatId,
-        linkedAt: b.linkedAt,
-        createdAt: b.createdAt,
+        botUsername: b.bot_username,
+        telegramUserId: b.telegram_user_id,
+        telegramChatId: b.telegram_chat_id,
+        registrationCode: b.registration_code,
+        isActive: b.active === 1,
+        linked: !!b.telegram_chat_id,
+        linkedAt: b.linked_at
+          ? new Date(b.linked_at * 1000).toISOString()
+          : null,
+        createdAt: new Date(b.created_at * 1000).toISOString(),
       })),
     });
   } catch (err) {
@@ -34,7 +64,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const user = await getOrCreateUser();
+    const userId = getDemoUserId();
     const body = await request.json().catch(() => ({}));
     const { action } = body;
 
@@ -43,21 +73,16 @@ export async function POST(request: Request) {
       if (!botId) {
         return NextResponse.json({ error: "botId required" }, { status: 400 });
       }
-
-      // Deactivate all bots, then activate the selected one
-      await db
-        .update(bots)
-        .set({ isActive: false })
-        .where(eq(bots.userId, user.id));
-      await db
-        .update(bots)
-        .set({ isActive: true })
-        .where(and(eq(bots.id, botId), eq(bots.userId, user.id)));
-
+      const db = getDb();
+      db.prepare("UPDATE bots SET active = 0 WHERE user_id = ?").run(userId);
+      db.prepare("UPDATE bots SET active = 1 WHERE id = ? AND user_id = ?").run(
+        botId,
+        userId
+      );
       return NextResponse.json({ success: true });
     }
 
-    // Default: add a new bot
+    // Add a new bot
     const botUsername = (body.botUsername ?? "").replace("@", "").trim();
     if (!botUsername) {
       return NextResponse.json(
@@ -67,31 +92,38 @@ export async function POST(request: Request) {
     }
 
     const code = randomBytes(4).toString("hex").toUpperCase();
+    const db = getDb();
 
-    const existingBots = await db
-      .select()
-      .from(bots)
-      .where(eq(bots.userId, user.id));
+    const existingCount = (
+      db
+        .prepare("SELECT COUNT(*) as cnt FROM bots WHERE user_id = ?")
+        .get(userId) as { cnt: number }
+    ).cnt;
 
-    const isFirst = existingBots.length === 0;
+    const isFirst = existingCount === 0;
 
-    const inserted = await db
-      .insert(bots)
-      .values({
-        userId: user.id,
-        botUsername,
-        registrationCode: code,
-        isActive: isFirst,
-      })
-      .returning();
+    db.prepare(
+      "INSERT INTO bots (user_id, bot_username, registration_code, active) VALUES (?, ?, ?, ?)"
+    ).run(userId, botUsername, code, isFirst ? 1 : 0);
+
+    const inserted = db
+      .prepare(
+        "SELECT id, bot_username, registration_code, active FROM bots WHERE user_id = ? ORDER BY id DESC LIMIT 1"
+      )
+      .get(userId) as {
+      id: number;
+      bot_username: string;
+      registration_code: string;
+      active: number;
+    };
 
     return NextResponse.json({
       success: true,
       bot: {
-        id: inserted[0].id,
-        botUsername: inserted[0].botUsername,
-        registrationCode: inserted[0].registrationCode,
-        isActive: inserted[0].isActive,
+        id: inserted.id,
+        botUsername: inserted.bot_username,
+        registrationCode: inserted.registration_code,
+        isActive: inserted.active === 1,
         linked: false,
       },
       telegramLink: `https://t.me/${botUsername}?start=${code}`,
@@ -104,42 +136,32 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const user = await getOrCreateUser();
+    const userId = getDemoUserId();
     const body = await request.json();
     const { action, botId } = body;
 
+    if (!botId) {
+      return NextResponse.json({ error: "botId required" }, { status: 400 });
+    }
+
+    const db = getDb();
+
     if (action === "disconnect") {
-      if (!botId) {
-        return NextResponse.json({ error: "botId required" }, { status: 400 });
-      }
-
       const newCode = randomBytes(4).toString("hex").toUpperCase();
-      await db
-        .update(bots)
-        .set({
-          telegramUserId: null,
-          telegramChatId: null,
-          registrationCode: newCode,
-          linkedAt: null,
-          isActive: false,
-        })
-        .where(and(eq(bots.id, botId), eq(bots.userId, user.id)));
-
+      db.prepare(
+        "UPDATE bots SET telegram_user_id = NULL, telegram_chat_id = NULL, registration_code = ?, linked_at = NULL, active = 0 WHERE id = ? AND user_id = ?"
+      ).run(newCode, botId, userId);
       return NextResponse.json({ success: true, registrationCode: newCode });
     }
 
     if (action === "confirm") {
-      if (!botId) {
-        return NextResponse.json({ error: "botId required" }, { status: 400 });
-      }
+      const bot = db
+        .prepare(
+          "SELECT telegram_chat_id FROM bots WHERE id = ? AND user_id = ?"
+        )
+        .get(botId, userId) as { telegram_chat_id: string | null } | undefined;
 
-      const matched = await db
-        .select()
-        .from(bots)
-        .where(and(eq(bots.id, botId), eq(bots.userId, user.id)))
-        .limit(1);
-
-      if (matched.length === 0 || !matched[0].telegramChatId) {
+      if (!bot || !bot.telegram_chat_id) {
         return NextResponse.json(
           { error: "Bot not linked yet. Send /start CODE first." },
           { status: 400 }
@@ -148,26 +170,24 @@ export async function PATCH(request: Request) {
 
       return NextResponse.json({
         success: true,
-        telegramChatId: matched[0].telegramChatId,
+        telegramChatId: bot.telegram_chat_id,
       });
     }
 
     if (action === "regenerate-code") {
-      if (!botId) {
-        return NextResponse.json({ error: "botId required" }, { status: 400 });
-      }
+      const bot = db
+        .prepare(
+          "SELECT bot_username, telegram_chat_id FROM bots WHERE id = ? AND user_id = ?"
+        )
+        .get(botId, userId) as
+        | { bot_username: string; telegram_chat_id: string | null }
+        | undefined;
 
-      const matched = await db
-        .select()
-        .from(bots)
-        .where(and(eq(bots.id, botId), eq(bots.userId, user.id)))
-        .limit(1);
-
-      if (matched.length === 0) {
+      if (!bot) {
         return NextResponse.json({ error: "Bot not found" }, { status: 404 });
       }
 
-      if (matched[0].telegramChatId) {
+      if (bot.telegram_chat_id) {
         return NextResponse.json(
           { error: "Bot already linked. Disconnect first." },
           { status: 400 }
@@ -175,15 +195,15 @@ export async function PATCH(request: Request) {
       }
 
       const newCode = randomBytes(4).toString("hex").toUpperCase();
-      await db
-        .update(bots)
-        .set({ registrationCode: newCode })
-        .where(eq(bots.id, botId));
+      db.prepare("UPDATE bots SET registration_code = ? WHERE id = ?").run(
+        newCode,
+        botId
+      );
 
       return NextResponse.json({
         success: true,
         registrationCode: newCode,
-        telegramLink: `https://t.me/${matched[0].botUsername}?start=${newCode}`,
+        telegramLink: `https://t.me/${bot.bot_username}?start=${newCode}`,
       });
     }
 
@@ -196,7 +216,7 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const user = await getOrCreateUser();
+    const userId = getDemoUserId();
     const { searchParams } = new URL(request.url);
     const botId = searchParams.get("botId");
 
@@ -204,9 +224,11 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "botId required" }, { status: 400 });
     }
 
-    await db
-      .delete(bots)
-      .where(and(eq(bots.id, parseInt(botId)), eq(bots.userId, user.id)));
+    const db = getDb();
+    db.prepare("DELETE FROM bots WHERE id = ? AND user_id = ?").run(
+      parseInt(botId),
+      userId
+    );
 
     return NextResponse.json({ success: true });
   } catch (err) {
