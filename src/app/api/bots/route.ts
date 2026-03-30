@@ -108,6 +108,26 @@ export async function PATCH(request: Request) {
     const body = await request.json();
     const { action, botId } = body;
 
+    if (action === "disconnect") {
+      if (!botId) {
+        return NextResponse.json({ error: "botId required" }, { status: 400 });
+      }
+
+      const newCode = randomBytes(4).toString("hex").toUpperCase();
+      await db
+        .update(bots)
+        .set({
+          telegramUserId: null,
+          telegramChatId: null,
+          registrationCode: newCode,
+          linkedAt: null,
+          isActive: false,
+        })
+        .where(and(eq(bots.id, botId), eq(bots.userId, user.id)));
+
+      return NextResponse.json({ success: true, registrationCode: newCode });
+    }
+
     if (action === "confirm") {
       if (!botId) {
         return NextResponse.json({ error: "botId required" }, { status: 400 });

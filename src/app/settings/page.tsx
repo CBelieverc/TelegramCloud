@@ -175,6 +175,28 @@ export default function SettingsPage() {
     }
   };
 
+  const handleDisconnect = async (botId: number) => {
+    if (!confirm("Disconnect this bot? You can reconnect it later.")) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch("/api/bots", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "disconnect", botId }),
+      });
+      if (res.ok) {
+        showToast("success", "Bot disconnected");
+        fetchData();
+      } else {
+        showToast("error", "Failed to disconnect");
+      }
+    } catch {
+      showToast("error", "Failed to disconnect");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -394,6 +416,15 @@ export default function SettingsPage() {
                         Set Active
                       </button>
                     )}
+                    <button
+                      onClick={() => handleDisconnect(bot.id)}
+                      disabled={actionLoading}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 text-neutral-400 text-xs font-medium rounded-lg hover:bg-red-600/10 hover:text-red-400 transition-colors"
+                      title="Disconnect"
+                    >
+                      <Link2Off className="w-3.5 h-3.5" />
+                      Disconnect
+                    </button>
                     <button
                       onClick={() => handleDelete(bot.id)}
                       disabled={actionLoading}
