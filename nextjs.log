@@ -11,3 +11,4 @@ $ next dev
  GET /api/bots 200 in 18ms (compile: 7ms, render: 12ms)
  GET /api/bots 200 in 17ms (compile: 6ms, render: 10ms)
  POST /api/bots 200 in 61ms (compile: 21ms, render: 40ms)
+ GET /api/bots 200 in 17ms (compile: 6ms, render: 11ms)
