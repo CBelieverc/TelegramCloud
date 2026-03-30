@@ -1,31 +1,33 @@
 import { NextResponse } from "next/server";
+import Database from "better-sqlite3";
 import { randomBytes } from "crypto";
+import path from "path";
 
-// Use bun:sqlite directly to avoid stale data from better-sqlite3
+const dbPath = path.join(process.cwd(), "data.db");
+
 function getDb() {
-   
-  const { Database } = require("bun:sqlite");
-  return new Database("./data.db");
+  const db = new Database(dbPath);
+  db.pragma("journal_mode = WAL");
+  db.pragma("wal_checkpoint(TRUNCATE)");
+  return db;
 }
 
-function getDemoUserId(): number {
-  const db = getDb();
-  const user = db
-    .prepare("SELECT id FROM users WHERE id = 1")
-    .get() as { id: number } | undefined;
+function getDemoUserId(db: ReturnType<typeof Database>): number {
+  const user = db.prepare("SELECT id FROM users WHERE id = 1").get() as
+    | { id: number }
+    | undefined;
   if (!user) {
-    const result = db
-      .prepare("INSERT INTO users (id) VALUES (1)")
-      .run();
+    db.prepare("INSERT INTO users (id) VALUES (1)").run();
     return 1;
   }
   return user.id;
 }
 
 export async function GET() {
+  let db: ReturnType<typeof Database> | null = null;
   try {
-    const userId = getDemoUserId();
-    const db = getDb();
+    db = getDb();
+    const userId = getDemoUserId(db);
     const allBots = db
       .prepare(
         "SELECT id, bot_username, telegram_user_id, telegram_chat_id, registration_code, active, linked_at, created_at FROM bots WHERE user_id = ?"
@@ -59,12 +61,16 @@ export async function GET() {
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });
+  } finally {
+    db?.close();
   }
 }
 
 export async function POST(request: Request) {
+  let db: ReturnType<typeof Database> | null = null;
   try {
-    const userId = getDemoUserId();
+    db = getDb();
+    const userId = getDemoUserId(db);
     const body = await request.json().catch(() => ({}));
     const { action } = body;
 
@@ -73,16 +79,13 @@ export async function POST(request: Request) {
       if (!botId) {
         return NextResponse.json({ error: "botId required" }, { status: 400 });
       }
-      const db = getDb();
       db.prepare("UPDATE bots SET active = 0 WHERE user_id = ?").run(userId);
-      db.prepare("UPDATE bots SET active = 1 WHERE id = ? AND user_id = ?").run(
-        botId,
-        userId
-      );
+      db.prepare(
+        "UPDATE bots SET active = 1 WHERE id = ? AND user_id = ?"
+      ).run(botId, userId);
       return NextResponse.json({ success: true });
     }
 
-    // Add a new bot
     const botUsername = (body.botUsername ?? "").replace("@", "").trim();
     if (!botUsername) {
       return NextResponse.json(
@@ -92,19 +95,15 @@ export async function POST(request: Request) {
     }
 
     const code = randomBytes(4).toString("hex").toUpperCase();
-    const db = getDb();
-
     const existingCount = (
       db
         .prepare("SELECT COUNT(*) as cnt FROM bots WHERE user_id = ?")
         .get(userId) as { cnt: number }
     ).cnt;
 
-    const isFirst = existingCount === 0;
-
     db.prepare(
       "INSERT INTO bots (user_id, bot_username, registration_code, active) VALUES (?, ?, ?, ?)"
-    ).run(userId, botUsername, code, isFirst ? 1 : 0);
+    ).run(userId, botUsername, code, existingCount === 0 ? 1 : 0);
 
     const inserted = db
       .prepare(
@@ -131,20 +130,22 @@ export async function POST(request: Request) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });
+  } finally {
+    db?.close();
   }
 }
 
 export async function PATCH(request: Request) {
+  let db: ReturnType<typeof Database> | null = null;
   try {
-    const userId = getDemoUserId();
+    db = getDb();
+    const userId = getDemoUserId(db);
     const body = await request.json();
     const { action, botId } = body;
 
     if (!botId) {
       return NextResponse.json({ error: "botId required" }, { status: 400 });
     }
-
-    const db = getDb();
 
     if (action === "disconnect") {
       const newCode = randomBytes(4).toString("hex").toUpperCase();
@@ -159,7 +160,9 @@ export async function PATCH(request: Request) {
         .prepare(
           "SELECT telegram_chat_id FROM bots WHERE id = ? AND user_id = ?"
         )
-        .get(botId, userId) as { telegram_chat_id: string | null } | undefined;
+        .get(botId, userId) as
+        | { telegram_chat_id: string | null }
+        | undefined;
 
       if (!bot || !bot.telegram_chat_id) {
         return NextResponse.json(
@@ -167,7 +170,6 @@ export async function PATCH(request: Request) {
           { status: 400 }
         );
       }
-
       return NextResponse.json({
         success: true,
         telegramChatId: bot.telegram_chat_id,
@@ -186,7 +188,6 @@ export async function PATCH(request: Request) {
       if (!bot) {
         return NextResponse.json({ error: "Bot not found" }, { status: 404 });
       }
-
       if (bot.telegram_chat_id) {
         return NextResponse.json(
           { error: "Bot already linked. Disconnect first." },
@@ -199,7 +200,6 @@ export async function PATCH(request: Request) {
         newCode,
         botId
       );
-
       return NextResponse.json({
         success: true,
         registrationCode: newCode,
@@ -211,12 +211,16 @@ export async function PATCH(request: Request) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });
+  } finally {
+    db?.close();
   }
 }
 
 export async function DELETE(request: Request) {
+  let db: ReturnType<typeof Database> | null = null;
   try {
-    const userId = getDemoUserId();
+    db = getDb();
+    const userId = getDemoUserId(db);
     const { searchParams } = new URL(request.url);
     const botId = searchParams.get("botId");
 
@@ -224,15 +228,15 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "botId required" }, { status: 400 });
     }
 
-    const db = getDb();
     db.prepare("DELETE FROM bots WHERE id = ? AND user_id = ?").run(
       parseInt(botId),
       userId
     );
-
     return NextResponse.json({ success: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });
+  } finally {
+    db?.close();
   }
 }
