@@ -8,3 +8,7 @@ $ next dev
 ✓ Starting...
 ✓ Ready in 1852ms
  GET /api/bots 200 in 1106ms (compile: 1055ms, render: 51ms)
+ GET /api/bots 200 in 64ms (compile: 32ms, render: 32ms)
+ GET /api/debug 200 in 511ms (compile: 496ms, render: 15ms)
+ GET /api/bots 200 in 48ms (compile: 40ms, render: 8ms)
+error: script "dev" was terminated by signal SIGKILL (Forced quit)

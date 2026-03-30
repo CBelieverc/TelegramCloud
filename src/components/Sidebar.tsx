@@ -25,7 +25,11 @@ export function Sidebar() {
   const [showBots, setShowBots] = useState(false);
 
   useEffect(() => {
-    Promise.all([fetch("/api/user"), fetch("/api/bots")])
+    const ts = Date.now();
+    Promise.all([
+      fetch(`/api/user?t=${ts}`, { cache: "no-store" }),
+      fetch(`/api/bots?t=${ts}`, { cache: "no-store" }),
+    ])
       .then(async ([userRes, botsRes]) => {
         const userData = await userRes.json();
         setConnected(!!userData?.linked);

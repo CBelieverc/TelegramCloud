@@ -53,9 +53,10 @@ export default function SettingsPage() {
 
   const fetchData = useCallback(async () => {
     try {
+      const ts = Date.now();
       const [userRes, botsRes] = await Promise.all([
-        fetch("/api/user"),
-        fetch("/api/bots"),
+        fetch(`/api/user?t=${ts}`, { cache: "no-store" }),
+        fetch(`/api/bots?t=${ts}`, { cache: "no-store" }),
       ]);
       const userData = await userRes.json();
       const botsData = await botsRes.json();

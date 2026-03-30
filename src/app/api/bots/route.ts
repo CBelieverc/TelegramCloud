@@ -57,6 +57,12 @@ export async function GET() {
           : null,
         createdAt: new Date(b.created_at * 1000).toISOString(),
       })),
+      timestamp: new Date().toISOString(),
+    }, {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Pragma": "no-cache",
+      },
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
