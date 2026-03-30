@@ -89,51 +89,21 @@ async function handleMessage(message: TelegramMessage) {
         return;
       }
 
-      await sendMessage(chatId, "Creating your private cloud storage... Please wait.");
-
-      let groupChatId: string;
-      try {
-        const result = await telegramApi("createNewChannel", {
-          title: "My Cloud Storage",
-          is_channel: false,
-        });
-        if (!result.ok) throw new Error(result.description);
-        groupChatId = String(result.result.id);
-
-        try {
-          await telegramApi("setChatDescription", {
-            chat_id: groupChatId,
-            description: `Private cloud storage for user #${matchedUser.id}`,
-          });
-        } catch {}
-      } catch (error) {
-        console.error("[bot] Failed to create group:", error);
-        await sendMessage(chatId, "Failed to create storage group. Please try again or check bot permissions.");
-        return;
-      }
+      await sendMessage(chatId, "Linking your account... Please wait.");
 
       await db
         .update(users)
         .set({
           telegramUserId,
-          telegramGroupChatId: groupChatId,
+          telegramGroupChatId: chatId,
           linkedAt: new Date(),
         })
         .where(eq(users.id, matchedUser.id));
 
-      try {
-        await telegramApi("sendMessage", {
-          chat_id: groupChatId,
-          text:
-            `Welcome to your private cloud storage!\n\n` +
-            `User ID: #${matchedUser.id}\n` +
-            `Files uploaded via the web app will appear here.`,
-        });
-      } catch {}
-
       await sendMessage(
         chatId,
-        `Your private cloud storage has been created!\n\n` +
+        `Your account has been linked!\n\n` +
+          `Files uploaded via the web app will be sent to this chat.\n\n` +
           `Go back to the web app and click "Confirm Connection" to start uploading files.`
       );
       return;

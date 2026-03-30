@@ -81,38 +81,22 @@ export async function POST(request: Request) {
 
         await sendTelegramMessage(
           chatId,
-          "Creating your private cloud storage... Please wait."
+          "Linking your account... Please wait."
         );
-
-        let groupChatId: string;
-        try {
-          const result = await createPrivateGroup(matchedUser.id);
-          groupChatId = result.chatId;
-        } catch (error) {
-          console.error("Failed to create group:", error);
-          await sendTelegramMessage(
-            chatId,
-            "Failed to create storage group. Please try again or check bot permissions."
-          );
-          return NextResponse.json({ ok: true });
-        }
 
         await db
           .update(users)
           .set({
             telegramUserId,
-            telegramGroupChatId: groupChatId,
+            telegramGroupChatId: chatId,
             linkedAt: new Date(),
           })
           .where(eq(users.id, matchedUser.id));
 
-        try {
-          await sendWelcomeMessage(groupChatId, matchedUser.id);
-        } catch {}
-
         await sendTelegramMessage(
           chatId,
-          `Your private cloud storage has been created!\n\n` +
+          `Your account has been linked!\n\n` +
+            `Files uploaded via the web app will be sent to this chat.\n\n` +
             `Go back to the web app and click "Confirm Connection" to start uploading files.`
         );
 

@@ -6,13 +6,7 @@ $ next dev
 - Environments: .env.local
 
 ✓ Starting...
-Attention: Next.js now collects completely anonymous telemetry regarding usage.
-This information is used to shape Next.js' roadmap and prioritize features.
-You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
-https://nextjs.org/telemetry
-
-✓ Ready in 1267ms
- GET / 200 in 2.9s (compile: 2.7s, render: 188ms)
- POST /api/user 200 in 1037ms (compile: 968ms, render: 69ms)
- POST /api/user 200 in 68ms (compile: 17ms, render: 51ms)
- GET / 200 in 92ms (compile: 11ms, render: 82ms)
+✓ Ready in 1507ms
+ GET / 200 in 1459ms (compile: 1271ms, render: 188ms)
+ POST /api/user 200 in 265ms (compile: 171ms, render: 94ms)
+ GET / 200 in 49ms (compile: 5ms, render: 44ms)
