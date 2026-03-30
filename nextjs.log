@@ -6,14 +6,5 @@ $ next dev
 - Environments: .env.local
 
 ✓ Starting...
-✓ Ready in 1406ms
- GET /api/bots 200 in 1159ms (compile: 1098ms, render: 61ms)
- GET /api/bots 200 in 18ms (compile: 7ms, render: 12ms)
- GET /api/bots 200 in 17ms (compile: 6ms, render: 10ms)
- POST /api/bots 200 in 61ms (compile: 21ms, render: 40ms)
- GET /api/bots 200 in 17ms (compile: 6ms, render: 11ms)
- GET /api/bots 200 in 352ms (compile: 307ms, render: 44ms)
- GET /api/bots 200 in 13ms (compile: 5ms, render: 9ms)
- GET /api/bots 200 in 50ms (compile: 24ms, render: 26ms)
- PATCH /api/bots 200 in 53ms (compile: 18ms, render: 35ms)
- GET /api/bots 200 in 21ms (compile: 5ms, render: 16ms)
+✓ Ready in 1437ms
+ GET /api/bots 200 in 514ms (compile: 463ms, render: 51ms)
