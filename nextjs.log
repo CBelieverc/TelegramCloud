@@ -6,9 +6,6 @@ $ next dev
 - Environments: .env.local
 
 ✓ Starting...
-✓ Ready in 1852ms
- GET /api/bots 200 in 1106ms (compile: 1055ms, render: 51ms)
- GET /api/bots 200 in 64ms (compile: 32ms, render: 32ms)
- GET /api/debug 200 in 511ms (compile: 496ms, render: 15ms)
- GET /api/bots 200 in 48ms (compile: 40ms, render: 8ms)
-error: script "dev" was terminated by signal SIGKILL (Forced quit)
+✓ Ready in 1397ms
+ GET /api/bots 200 in 361ms (compile: 315ms, render: 47ms)
+ GET /api/debug 200 in 44ms (compile: 36ms, render: 8ms)
