@@ -11,29 +11,39 @@ import {
   ExternalLink,
   Send,
   Copy,
-  Save,
+  Plus,
+  Trash2,
+  Star,
 } from "lucide-react";
+
+interface BotItem {
+  id: number;
+  botUsername: string;
+  telegramUserId: string | null;
+  telegramChatId: string | null;
+  registrationCode: string | null;
+  isActive: boolean;
+  linked: boolean;
+  linkedAt: string | null;
+}
 
 interface UserStatus {
   id: number;
   linked: boolean;
-  telegramUserId: string | null;
-  telegramGroupChatId: string | null;
-  registrationCode: string | null;
-  botConfigured: boolean;
   botUsername: string;
-  linkedAt: string | null;
+  botConfigured: boolean;
 }
 
 export default function SettingsPage() {
   const [user, setUser] = useState<UserStatus | null>(null);
+  const [bots, setBots] = useState<BotItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [waitingConfirm, setWaitingConfirm] = useState(false);
-  const [telegramLink, setTelegramLink] = useState("");
-  const [registrationCode, setRegistrationCode] = useState("");
-  const [botUsername, setBotUsername] = useState("");
-  const [dbError, setDbError] = useState<string | null>(null);
+  const [newBotUsername, setNewBotUsername] = useState("");
+  const [addingBot, setAddingBot] = useState(false);
+  const [waitingConfirm, setWaitingConfirm] = useState<number | null>(null);
+  const [pendingCode, setPendingCode] = useState("");
+  const [pendingLink, setPendingLink] = useState("");
   const [toast, setToast] = useState<{
     type: "success" | "error";
     message: string;
@@ -44,109 +54,91 @@ export default function SettingsPage() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const getEffectiveBotUsername = useCallback(() => {
-    return user?.botUsername || botUsername || "";
-  }, [user?.botUsername, botUsername]);
-
-  const fetchStatus = async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const res = await fetch("/api/user");
-      const data = await res.json();
-      if (res.ok) {
-        setUser(data);
-        setDbError(null);
-      } else {
-        setDbError(data.error || "Failed to load user data");
-      }
+      const [userRes, botsRes] = await Promise.all([
+        fetch("/api/user"),
+        fetch("/api/bots"),
+      ]);
+      const userData = await userRes.json();
+      const botsData = await botsRes.json();
+      if (userRes.ok) setUser(userData);
+      if (botsRes.ok) setBots(botsData.bots ?? []);
     } catch {
-      setDbError("Failed to connect to server");
+      showToast("error", "Failed to load data");
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchStatus();
   }, []);
 
   useEffect(() => {
-    if (user?.botUsername && !botUsername) {
-      setBotUsername(user.botUsername);
-    }
-  }, [user?.botUsername, botUsername]);
+    fetchData();
+  }, [fetchData]);
 
-  const handleSaveBotUsername = async () => {
-    const cleaned = botUsername.replace("@", "").trim();
+  const handleAddBot = async () => {
+    const cleaned = newBotUsername.replace("@", "").trim();
     if (!cleaned) return;
-    setBotUsername(cleaned);
-    try {
-      await fetch("/api/user", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "save-bot-username", botUsername: cleaned }),
-      });
-      showToast("success", "Bot username saved");
-      fetchStatus();
-    } catch {
-      showToast("error", "Failed to save");
-    }
-  };
-
-  const handleConnect = async () => {
-    const effectiveUsername = getEffectiveBotUsername();
-    if (!effectiveUsername) {
-      showToast("error", "Enter your bot username first");
-      return;
-    }
-
     setActionLoading(true);
     try {
-      const res = await fetch("/api/user", { method: "POST" });
+      const res = await fetch("/api/bots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ botUsername: cleaned }),
+      });
       const data = await res.json();
-
       if (!res.ok) {
-        showToast("error", data.error || "Failed to connect");
-        fetchStatus();
+        showToast("error", data.error || "Failed to add bot");
         return;
       }
-
-      const link =
-        data.telegramLink ||
-        `https://t.me/${effectiveUsername}?start=${data.registrationCode}`;
-
-      setTelegramLink(link);
-      setRegistrationCode(data.registrationCode);
-      setWaitingConfirm(true);
-      fetchStatus();
-
-      window.open(link, "_blank");
-      showToast("success", "Opened Telegram. Tap send, then come back here.");
-    } catch (err) {
-      console.error("Connect error:", err);
-      showToast("error", "Failed to connect");
+      setNewBotUsername("");
+      setAddingBot(false);
+      setPendingCode(data.bot.registrationCode);
+      setPendingLink(data.telegramLink);
+      setWaitingConfirm(data.bot.id);
+      window.open(data.telegramLink, "_blank");
+      showToast("success", "Bot added! Send the code in Telegram.");
+      fetchData();
+    } catch {
+      showToast("error", "Failed to add bot");
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleConfirm = async () => {
+  const handleActivate = async (botId: number) => {
     setActionLoading(true);
     try {
-      const res = await fetch("/api/user", {
+      await fetch("/api/bots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "activate", botId }),
+      });
+      showToast("success", "Bot activated");
+      fetchData();
+    } catch {
+      showToast("error", "Failed to activate");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleConfirm = async (botId: number) => {
+    setActionLoading(true);
+    try {
+      const res = await fetch("/api/bots", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "confirm" }),
+        body: JSON.stringify({ action: "confirm", botId }),
       });
       const data = await res.json();
-
       if (res.ok) {
-        showToast("success", "Telegram connected successfully!");
-        setWaitingConfirm(false);
-        setTelegramLink("");
-        setRegistrationCode("");
-        fetchStatus();
+        showToast("success", "Bot confirmed!");
+        setWaitingConfirm(null);
+        setPendingCode("");
+        setPendingLink("");
+        fetchData();
       } else {
-        showToast("error", data.error || "Connection not confirmed yet");
+        showToast("error", data.error || "Not linked yet");
       }
     } catch {
       showToast("error", "Failed to confirm");
@@ -155,26 +147,29 @@ export default function SettingsPage() {
     }
   };
 
-  const handleDisconnect = async () => {
-    if (
-      !confirm(
-        "Disconnect Telegram? Your files will remain in the bot chat but won't be accessible from this app."
-      )
-    )
-      return;
+  const handleConnect = (bot: BotItem) => {
+    if (!bot.registrationCode) return;
+    const link = `https://t.me/${bot.botUsername}?start=${bot.registrationCode}`;
+    setPendingCode(bot.registrationCode);
+    setPendingLink(link);
+    setWaitingConfirm(bot.id);
+    window.open(link, "_blank");
+  };
 
+  const handleDelete = async (botId: number) => {
+    if (!confirm("Remove this bot?")) return;
     setActionLoading(true);
-    setWaitingConfirm(false);
-    setTelegramLink("");
-    setRegistrationCode("");
     try {
-      const res = await fetch("/api/user", { method: "DELETE" });
-      if (res.ok) {
-        showToast("success", "Disconnected successfully");
-        fetchStatus();
+      await fetch(`/api/bots?botId=${botId}`, { method: "DELETE" });
+      showToast("success", "Bot removed");
+      if (waitingConfirm === botId) {
+        setWaitingConfirm(null);
+        setPendingCode("");
+        setPendingLink("");
       }
+      fetchData();
     } catch {
-      showToast("error", "Failed to disconnect");
+      showToast("error", "Failed to remove");
     } finally {
       setActionLoading(false);
     }
@@ -188,10 +183,11 @@ export default function SettingsPage() {
     );
   }
 
-  const effectiveUsername = getEffectiveBotUsername();
+  const linkedBots = bots.filter((b) => b.linked);
+  const unlinkedBots = bots.filter((b) => !b.linked);
 
   return (
-    <div className="p-8 max-w-2xl">
+    <div className="p-8 max-w-3xl">
       {toast && (
         <div
           className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg ${
@@ -212,311 +208,27 @@ export default function SettingsPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white">Settings</h1>
         <p className="text-neutral-400 mt-1">
-          Connect your Telegram for unlimited cloud storage
+          Manage your Telegram bots for cloud storage
         </p>
       </div>
 
-      {dbError && (
-        <div className="mb-6 p-4 bg-red-600/10 border border-red-600/30 rounded-lg">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-red-200">
-                Database Error
-              </p>
-              <p className="text-xs text-red-400/70 mt-0.5">{dbError}</p>
-            </div>
-            <button
-              onClick={fetchStatus}
-              className="px-3 py-1.5 bg-red-600/20 text-red-300 text-xs rounded-lg hover:bg-red-600/30 transition-colors"
-            >
-              Retry
-            </button>
-          </div>
+      {/* Add Bot */}
+      <div className="mb-6 p-5 bg-neutral-900 border border-neutral-800 rounded-xl">
+        <div className="flex items-center gap-3 mb-4">
+          <Plus className="w-5 h-5 text-blue-400" />
+          <h2 className="text-sm font-semibold text-white">Add a Bot</h2>
         </div>
-      )}
-
-      {!user?.linked && (
-        <div className="mb-6 p-5 bg-neutral-900 border border-neutral-800 rounded-xl">
-          <div className="flex items-center gap-3 mb-4">
-            <Bot className="w-5 h-5 text-blue-400" />
-            <h2 className="text-sm font-semibold text-white">
-              {effectiveUsername ? "Bot Username" : "Step 1: Create Your Bot"}
-            </h2>
-          </div>
-
-          {!effectiveUsername && (
-            <div className="space-y-3 mb-4">
-              <a
-                href="https://t.me/BotFather"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-neutral-800 text-white text-sm font-medium rounded-lg hover:bg-neutral-700 transition-colors border border-neutral-700"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Open @BotFather in Telegram
-              </a>
-              <ol className="space-y-2">
-                <li className="flex gap-2 text-xs text-neutral-400">
-                  <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
-                    1
-                  </span>
-                  <span>
-                    Send{" "}
-                    <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
-                      /newbot
-                    </code>{" "}
-                    to @BotFather
-                  </span>
-                </li>
-                <li className="flex gap-2 text-xs text-neutral-400">
-                  <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
-                    2
-                  </span>
-                  <span>
-                    Follow the prompts, then copy the bot username (ends with{" "}
-                    <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
-                      _bot
-                    </code>
-                    )
-                  </span>
-                </li>
-                <li className="flex gap-2 text-xs text-neutral-400">
-                  <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
-                    3
-                  </span>
-                  <span>Paste the username below and click Save</span>
-                </li>
-              </ol>
-            </div>
-          )}
-
-          {effectiveUsername && (
-            <p className="text-xs text-neutral-500 mb-3">
-              Your bot:{" "}
-              <a
-                href={`https://t.me/${effectiveUsername}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:underline"
-              >
-                @{effectiveUsername}
-              </a>
-            </p>
-          )}
-
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">
-                @
-              </span>
-              <input
-                type="text"
-                value={botUsername}
-                onChange={(e) =>
-                  setBotUsername(e.target.value.replace("@", "").trim())
-                }
-                onKeyDown={(e) => e.key === "Enter" && handleSaveBotUsername()}
-                placeholder="my_cloud_bot"
-                className="w-full pl-7 pr-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white placeholder-neutral-500 outline-none focus:border-blue-500 transition-colors"
-              />
-            </div>
-            <button
-              onClick={handleSaveBotUsername}
-              disabled={!botUsername.trim()}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <Save className="w-4 h-4" />
-              Save
-            </button>
-          </div>
-          <p className="text-[11px] text-neutral-600 mt-2">
-            Example: BotFather says{" "}
-            <code className="text-neutral-500">
-              https://t.me/my_cloud_bot
-            </code>{" "}
-            &rarr; enter <code className="text-neutral-400">my_cloud_bot</code>
-          </p>
-        </div>
-      )}
-
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">
-            Telegram Connection
-          </h2>
-          <div
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
-              user?.linked
-                ? "bg-green-600/20 text-green-400"
-                : "bg-neutral-700 text-neutral-400"
-            }`}
+        {!addingBot ? (
+          <button
+            onClick={() => setAddingBot(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 transition-colors"
           >
-            <div
-              className={`w-2 h-2 rounded-full ${
-                user?.linked ? "bg-green-400" : "bg-neutral-500"
-              }`}
-            />
-            {user?.linked ? "Connected" : "Not Connected"}
-          </div>
-        </div>
-
-        {user?.linked ? (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 p-3 bg-green-600/10 border border-green-600/20 rounded-lg">
-              <Shield className="w-5 h-5 text-green-400 shrink-0" />
-              <div>
-                <p className="text-sm text-green-200">
-                  Your private cloud storage is active
-                </p>
-                <p className="text-xs text-green-400/60 mt-0.5">
-                  Files are stored in your Telegram bot chat
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="p-3 bg-neutral-800 rounded-lg">
-                <p className="text-neutral-500 text-xs">Telegram User ID</p>
-                <p className="text-white font-mono mt-0.5">
-                  {user.telegramUserId ?? "N/A"}
-                </p>
-              </div>
-              <div className="p-3 bg-neutral-800 rounded-lg">
-                <p className="text-neutral-500 text-xs">Storage Chat ID</p>
-                <p className="text-white font-mono mt-0.5">
-                  {user.telegramGroupChatId ?? "N/A"}
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={handleDisconnect}
-              disabled={actionLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600/20 text-red-400 text-sm font-medium rounded-lg hover:bg-red-600/30 disabled:opacity-50 transition-colors"
-            >
-              <Link2Off className="w-4 h-4" />
-              Disconnect Telegram
-            </button>
-          </div>
-        ) : waitingConfirm ? (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 p-3 bg-blue-600/10 border border-blue-600/20 rounded-lg">
-              <Send className="w-5 h-5 text-blue-400 shrink-0" />
-              <div>
-                <p className="text-sm text-blue-200">
-                  Waiting for confirmation
-                </p>
-                <p className="text-xs text-blue-400/60 mt-0.5">
-                  Open your bot in Telegram, tap Send, then come back here
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {(() => {
-                const code = registrationCode || user?.registrationCode || "";
-                const username = effectiveUsername;
-                const link =
-                  telegramLink ||
-                  (username && code
-                    ? `https://t.me/${username}?start=${code}`
-                    : "");
-
-                return (
-                  <>
-                    {link && (
-                      <a
-                        href={link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 transition-colors"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        Open @{username || "your bot"} in Telegram
-                      </a>
-                    )}
-
-                    {code && (
-                      <div className="flex items-center gap-2">
-                        <code className="flex-1 px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-blue-300 font-mono">
-                          /start {code}
-                        </code>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(`/start ${code}`);
-                            showToast("success", "Copied!");
-                          }}
-                          className="p-3 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-600 transition-colors"
-                          title="Copy command"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
-
-                    {!link && !code && (
-                      <p className="text-xs text-neutral-500 text-center py-2">
-                        Connection in progress...
-                      </p>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={handleConfirm}
-                disabled={actionLoading}
-                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors"
-              >
-                <Link2 className="w-4 h-4" />
-                {actionLoading ? "Checking..." : "Confirm Connection"}
-              </button>
-              <button
-                onClick={() => {
-                  setWaitingConfirm(false);
-                  setTelegramLink("");
-                  setRegistrationCode("");
-                  fetchStatus();
-                }}
-                className="px-4 py-2 bg-neutral-800 text-neutral-400 text-sm rounded-lg hover:bg-neutral-700 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
+            <Plus className="w-4 h-4" />
+            Add New Bot
+          </button>
         ) : (
-          <div className="space-y-4">
-            <p className="text-sm text-neutral-400">
-              {effectiveUsername
-                ? "One click to connect. You'll be redirected to Telegram to authorize the bot."
-                : "Enter your bot username above first, then click connect."}
-            </p>
-
-            <button
-              onClick={handleConnect}
-              disabled={actionLoading || !effectiveUsername}
-              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <ExternalLink className="w-4 h-4" />
-              {actionLoading ? "Connecting..." : "Connect Telegram"}
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">
-          Setup Checklist
-        </h2>
-        <ol className="space-y-3 text-sm text-neutral-400">
-          <li className="flex gap-3">
-            <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">
-              1
-            </span>
-            <span>
+          <div className="space-y-3">
+            <p className="text-xs text-neutral-400">
               Create a bot on{" "}
               <a
                 href="https://t.me/BotFather"
@@ -526,52 +238,251 @@ export default function SettingsPage() {
               >
                 @BotFather
               </a>{" "}
-              with{" "}
-              <code className="px-1 py-0.5 bg-neutral-800 rounded text-neutral-300">
-                /newbot
-              </code>
-            </span>
-          </li>
-          <li className="flex gap-3">
-            <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">
-              2
-            </span>
-            <span>
-              Enter the bot username BotFather gives you in the field above
-            </span>
-          </li>
-          <li className="flex gap-3">
-            <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">
-              3
-            </span>
-            <span>
-              Click{" "}
-              <strong className="text-neutral-300">Connect Telegram</strong> to
-              open your bot
-            </span>
-          </li>
-          <li className="flex gap-3">
-            <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">
-              4
-            </span>
-            <span>
-              Tap <strong className="text-neutral-300">Start</strong> or{" "}
-              <strong className="text-neutral-300">Send</strong> in{" "}
-              <strong className="text-neutral-300">your bot&apos;s chat</strong>{" "}
-              (not @BotFather)
-            </span>
-          </li>
-          <li className="flex gap-3">
-            <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">
-              5
-            </span>
-            <span>
-              Come back and click{" "}
-              <strong className="text-neutral-300">Confirm Connection</strong>
-            </span>
-          </li>
-        </ol>
+              with /newbot, then enter the username below.
+            </p>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">
+                  @
+                </span>
+                <input
+                  type="text"
+                  value={newBotUsername}
+                  onChange={(e) =>
+                    setNewBotUsername(e.target.value.replace("@", "").trim())
+                  }
+                  onKeyDown={(e) => e.key === "Enter" && handleAddBot()}
+                  placeholder="my_cloud_bot"
+                  className="w-full pl-7 pr-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white placeholder-neutral-500 outline-none focus:border-blue-500 transition-colors"
+                  autoFocus
+                />
+              </div>
+              <button
+                onClick={handleAddBot}
+                disabled={!newBotUsername.trim() || actionLoading}
+                className="px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors"
+              >
+                Add
+              </button>
+              <button
+                onClick={() => {
+                  setAddingBot(false);
+                  setNewBotUsername("");
+                }}
+                className="px-4 py-2.5 bg-neutral-800 text-neutral-400 text-sm rounded-lg hover:bg-neutral-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Waiting Confirm */}
+      {waitingConfirm && (
+        <div className="mb-6 p-5 bg-blue-600/10 border border-blue-600/30 rounded-xl">
+          <div className="flex items-center gap-3 mb-4">
+            <Send className="w-5 h-5 text-blue-400" />
+            <h2 className="text-sm font-semibold text-blue-200">
+              Waiting for confirmation
+            </h2>
+          </div>
+          <div className="space-y-3">
+            {pendingLink && (
+              <a
+                href={pendingLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 transition-colors"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Open in Telegram
+              </a>
+            )}
+            {pendingCode && (
+              <div className="flex items-center gap-2">
+                <code className="flex-1 px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-blue-300 font-mono">
+                  /start {pendingCode}
+                </code>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`/start ${pendingCode}`);
+                    showToast("success", "Copied!");
+                  }}
+                  className="p-3 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-600 transition-colors"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-3 mt-4">
+            <button
+              onClick={() => handleConfirm(waitingConfirm)}
+              disabled={actionLoading}
+              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors"
+            >
+              <Link2 className="w-4 h-4" />
+              {actionLoading ? "Checking..." : "Confirm Connection"}
+            </button>
+            <button
+              onClick={() => {
+                setWaitingConfirm(null);
+                setPendingCode("");
+                setPendingLink("");
+              }}
+              className="px-4 py-2 bg-neutral-800 text-neutral-400 text-sm rounded-lg hover:bg-neutral-700 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Connected Bots */}
+      {linkedBots.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+            <Shield className="w-4 h-4 text-green-400" />
+            Connected Bots ({linkedBots.length})
+          </h2>
+          <div className="space-y-3">
+            {linkedBots.map((bot) => (
+              <div
+                key={bot.id}
+                className={`p-4 bg-neutral-900 border rounded-xl ${
+                  bot.isActive
+                    ? "border-green-600/40 bg-green-600/5"
+                    : "border-neutral-800"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        bot.isActive ? "bg-green-600/20" : "bg-neutral-800"
+                      }`}
+                    >
+                      <Bot
+                        className={`w-5 h-5 ${
+                          bot.isActive ? "text-green-400" : "text-neutral-400"
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-white">
+                        @{bot.botUsername}
+                        {bot.isActive && (
+                          <span className="ml-2 px-2 py-0.5 bg-green-600/20 text-green-400 text-[10px] rounded-full font-bold">
+                            ACTIVE
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-neutral-500">
+                        Chat: {bot.telegramChatId}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!bot.isActive && (
+                      <button
+                        onClick={() => handleActivate(bot.id)}
+                        disabled={actionLoading}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 text-blue-400 text-xs font-medium rounded-lg hover:bg-blue-600/30 transition-colors"
+                      >
+                        <Star className="w-3.5 h-3.5" />
+                        Set Active
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(bot.id)}
+                      disabled={actionLoading}
+                      className="p-2 text-neutral-500 hover:text-red-400 hover:bg-red-600/10 rounded-lg transition-colors"
+                      title="Remove"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Unlinked Bots */}
+      {unlinkedBots.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-neutral-400 mb-3">
+            Not Connected ({unlinkedBots.length})
+          </h2>
+          <div className="space-y-3">
+            {unlinkedBots.map((bot) => (
+              <div
+                key={bot.id}
+                className="p-4 bg-neutral-900 border border-neutral-800 rounded-xl"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-neutral-800 flex items-center justify-center">
+                      <Bot className="w-5 h-5 text-neutral-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-neutral-300">
+                        @{bot.botUsername}
+                      </p>
+                      <p className="text-xs text-neutral-500">Not connected</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleConnect(bot)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-500 transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Connect
+                    </button>
+                    <button
+                      onClick={() => handleDelete(bot.id)}
+                      disabled={actionLoading}
+                      className="p-2 text-neutral-500 hover:text-red-400 hover:bg-red-600/10 rounded-lg transition-colors"
+                      title="Remove"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {bots.length === 0 && !user?.linked && (
+        <div className="text-center py-12 bg-neutral-900 border border-neutral-800 rounded-xl">
+          <Bot className="w-12 h-12 text-neutral-600 mx-auto mb-3" />
+          <p className="text-sm text-neutral-400 mb-1">No bots added yet</p>
+          <p className="text-xs text-neutral-500">
+            Click &quot;Add New Bot&quot; above to get started
+          </p>
+        </div>
+      )}
+
+      {/* Legacy */}
+      {user?.linked && bots.length === 0 && (
+        <div className="p-4 bg-green-600/10 border border-green-600/20 rounded-xl">
+          <div className="flex items-center gap-3">
+            <Shield className="w-5 h-5 text-green-400" />
+            <div>
+              <p className="text-sm text-green-200">Legacy connection active</p>
+              <p className="text-xs text-green-400/60">
+                Your original Telegram connection is still active
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

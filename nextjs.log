@@ -8,3 +8,7 @@ $ next dev
 ✓ Starting...
 ✓ Ready in 1538ms
  GET /api/user 200 in 1002ms (compile: 944ms, render: 59ms)
+ GET /api/user 200 in 29ms (compile: 12ms, render: 17ms)
+ GET /api/user 200 in 21ms (compile: 9ms, render: 13ms)
+ GET /api/user 200 in 22ms (compile: 8ms, render: 14ms)
+error: script "dev" was terminated by signal SIGKILL (Forced quit)

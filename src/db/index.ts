@@ -17,7 +17,6 @@ function getDb() {
 
   _db = drizzle(sqlite, { schema });
 
-  // Auto-create tables if they don't exist
   if (!_initialized) {
     try {
       sqlite.exec(`
@@ -30,16 +29,33 @@ function getDb() {
           linked_at INTEGER,
           created_at INTEGER DEFAULT (unixepoch())
         );
+
+        CREATE TABLE IF NOT EXISTS bots (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          bot_username TEXT NOT NULL,
+          bot_token TEXT,
+          telegram_user_id TEXT,
+          telegram_chat_id TEXT,
+          registration_code TEXT,
+          active INTEGER DEFAULT 0,
+          linked_at INTEGER,
+          created_at INTEGER DEFAULT (unixepoch())
+        );
+
         CREATE TABLE IF NOT EXISTS folders (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           user_id INTEGER NOT NULL,
+          bot_id INTEGER,
           name TEXT NOT NULL,
           parent_id INTEGER,
           created_at INTEGER DEFAULT (unixepoch())
         );
+
         CREATE TABLE IF NOT EXISTS files (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           user_id INTEGER NOT NULL,
+          bot_id INTEGER,
           name TEXT NOT NULL,
           original_name TEXT NOT NULL,
           mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',

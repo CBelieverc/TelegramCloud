@@ -10,12 +10,12 @@ if (!TOKEN) {
 const API = `https://api.telegram.org/bot${TOKEN}`;
 
 let db: any = null;
-let users: any = null;
+let schema: any = null;
 
 try {
   const { Database } = await import("bun:sqlite");
   const { drizzle } = await import("drizzle-orm/bun-sqlite");
-  const schema = await import("@/db/schema");
+  schema = await import("@/db/schema");
 
   const sqlite = new Database("./data.db");
   sqlite.exec("PRAGMA journal_mode=WAL");
@@ -31,18 +31,25 @@ try {
       linked_at INTEGER,
       created_at INTEGER DEFAULT (unixepoch())
     );
+    CREATE TABLE IF NOT EXISTS bots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      bot_username TEXT NOT NULL,
+      bot_token TEXT,
+      telegram_user_id TEXT,
+      telegram_chat_id TEXT,
+      registration_code TEXT,
+      active INTEGER DEFAULT 0,
+      linked_at INTEGER,
+      created_at INTEGER DEFAULT (unixepoch())
+    );
   `);
 
   db = drizzle(sqlite, { schema });
-  users = schema.users;
   console.log("[bot] Database connected");
 } catch (err) {
   console.error("[bot] Database error:", err);
   process.exit(1);
-}
-
-function isDbReady(): boolean {
-  return db !== null && users !== null;
 }
 
 async function telegramApi(method: string, body: Record<string, unknown>) {
@@ -83,41 +90,77 @@ async function handleMessage(message: TelegramMessage) {
     if (code) {
       const { eq } = await import("drizzle-orm");
 
-      const matchedUsers = await db
+      // First check the bots table
+      const matchedBots = await db
         .select()
-        .from(users)
-        .where(eq(users.registrationCode, code))
+        .from(schema.bots)
+        .where(eq(schema.bots.registrationCode, code))
         .limit(1);
 
-      const matchedUser = matchedUsers[0];
+      if (matchedBots.length > 0) {
+        const matchedBot = matchedBots[0];
 
-      if (!matchedUser) {
-        await sendMessage(chatId, "Invalid registration code. Please generate a new one from the web app.");
+        if (matchedBot.telegramChatId) {
+          await sendMessage(chatId, "This bot is already linked. Please disconnect from the web app first.");
+          return;
+        }
+
+        await sendMessage(chatId, "Linking your bot... Please wait.");
+
+        await db
+          .update(schema.bots)
+          .set({
+            telegramUserId,
+            telegramChatId: chatId,
+            linkedAt: new Date(),
+          })
+          .where(eq(schema.bots.id, matchedBot.id));
+
+        await sendMessage(
+          chatId,
+          `@${matchedBot.botUsername} has been linked!\n\n` +
+            `Files uploaded via the web app using this bot will be sent to this chat.\n\n` +
+            `Go back to the web app and click "Confirm Connection" to start uploading files.`
+        );
         return;
       }
 
-      if (matchedUser.telegramGroupChatId) {
-        await sendMessage(chatId, "This account is already linked. Please disconnect from the web app first.");
+      // Fallback: check users table for backward compatibility
+      const matchedUsers = await db
+        .select()
+        .from(schema.users)
+        .where(eq(schema.users.registrationCode, code))
+        .limit(1);
+
+      if (matchedUsers.length > 0) {
+        const matchedUser = matchedUsers[0];
+
+        if (matchedUser.telegramGroupChatId) {
+          await sendMessage(chatId, "This account is already linked. Please disconnect from the web app first.");
+          return;
+        }
+
+        await sendMessage(chatId, "Linking your account... Please wait.");
+
+        await db
+          .update(schema.users)
+          .set({
+            telegramUserId,
+            telegramGroupChatId: chatId,
+            linkedAt: new Date(),
+          })
+          .where(eq(schema.users.id, matchedUser.id));
+
+        await sendMessage(
+          chatId,
+          `Your account has been linked!\n\n` +
+            `Files uploaded via the web app will be sent to this chat.\n\n` +
+            `Go back to the web app and click "Confirm Connection" to start uploading files.`
+        );
         return;
       }
 
-      await sendMessage(chatId, "Linking your account... Please wait.");
-
-      await db
-        .update(users)
-        .set({
-          telegramUserId,
-          telegramGroupChatId: chatId,
-          linkedAt: new Date(),
-        })
-        .where(eq(users.id, matchedUser.id));
-
-      await sendMessage(
-        chatId,
-        `Your account has been linked!\n\n` +
-          `Files uploaded via the web app will be sent to this chat.\n\n` +
-          `Go back to the web app and click "Confirm Connection" to start uploading files.`
-      );
+      await sendMessage(chatId, "Invalid registration code. Please generate a new one from the web app.");
       return;
     }
 
@@ -147,23 +190,40 @@ async function handleMessage(message: TelegramMessage) {
   if (text === "/status") {
     const { eq } = await import("drizzle-orm");
 
-    const matchedUser = await db
+    // Check bots table
+    const matchedBots = await db
       .select()
-      .from(users)
-      .where(eq(users.telegramUserId, telegramUserId))
-      .limit(1);
+      .from(schema.bots)
+      .where(eq(schema.bots.telegramUserId, telegramUserId))
+      .limit(5);
 
-    if (matchedUser.length === 0 || !matchedUser[0].telegramGroupChatId) {
-      await sendMessage(chatId, "You don't have a linked account. Use /start CODE to link.");
-    } else {
-      const user = matchedUser[0];
+    if (matchedBots.length > 0) {
+      const lines = matchedBots.map(
+        (b: any) => `  @${b.botUsername} ${b.telegramChatId ? "(linked)" : "(not linked)"}`
+      );
       await sendMessage(
         chatId,
-        `Your cloud storage is active!\n\n` +
-          `User ID: #${user.id}\n` +
-          `Chat ID: ${user.telegramGroupChatId}`
+        `Your linked bots:\n${lines.join("\n")}`
       );
+      return;
     }
+
+    // Check users table
+    const matchedUsers = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.telegramUserId, telegramUserId))
+      .limit(1);
+
+    if (matchedUsers.length > 0 && matchedUsers[0].telegramGroupChatId) {
+      await sendMessage(
+        chatId,
+        `Your cloud storage is active!\n\nUser ID: #${matchedUsers[0].id}`
+      );
+      return;
+    }
+
+    await sendMessage(chatId, "You don't have a linked account. Use /start CODE to link.");
     return;
   }
 }

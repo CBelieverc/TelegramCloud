@@ -3,7 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Cloud, FolderOpen, Settings, Home } from "lucide-react";
+import { Cloud, FolderOpen, Settings, Home, Bot, ChevronDown } from "lucide-react";
+
+interface BotItem {
+  id: number;
+  botUsername: string;
+  isActive: boolean;
+  linked: boolean;
+}
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: Home },
@@ -14,13 +21,36 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const [connected, setConnected] = useState(false);
+  const [bots, setBots] = useState<BotItem[]>([]);
+  const [showBots, setShowBots] = useState(false);
 
   useEffect(() => {
-    fetch("/api/user")
-      .then((r) => r.json())
-      .then((data) => setConnected(!!data?.linked))
+    Promise.all([fetch("/api/user"), fetch("/api/bots")])
+      .then(async ([userRes, botsRes]) => {
+        const userData = await userRes.json();
+        setConnected(!!userData?.linked);
+        try {
+          const botsData = await botsRes.json();
+          setBots(botsData.bots ?? []);
+        } catch {}
+      })
       .catch(() => {});
   }, []);
+
+  const activeBot = bots.find((b) => b.isActive && b.linked);
+  const linkedBots = bots.filter((b) => b.linked);
+
+  const handleActivate = async (botId: number) => {
+    await fetch("/api/bots", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "activate", botId }),
+    });
+    setBots((prev) =>
+      prev.map((b) => ({ ...b, isActive: b.id === botId }))
+    );
+    setShowBots(false);
+  };
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-neutral-900 border-r border-neutral-800 flex flex-col">
@@ -44,6 +74,57 @@ export function Sidebar() {
           </div>
         </div>
       </div>
+
+      {/* Bot Selector */}
+      {linkedBots.length > 0 && (
+        <div className="px-4 pt-4 pb-2">
+          <p className="text-[10px] uppercase tracking-wider text-neutral-500 mb-2 font-medium">
+            Active Bot
+          </p>
+          <button
+            onClick={() => setShowBots(!showBots)}
+            className="w-full flex items-center justify-between px-3 py-2 bg-neutral-800 rounded-lg hover:bg-neutral-750 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Bot className="w-4 h-4 text-blue-400" />
+              <span className="text-sm text-white">
+                @{activeBot?.botUsername || linkedBots[0]?.botUsername}
+              </span>
+            </div>
+            {linkedBots.length > 1 && (
+              <ChevronDown
+                className={`w-4 h-4 text-neutral-400 transition-transform ${
+                  showBots ? "rotate-180" : ""
+                }`}
+              />
+            )}
+          </button>
+
+          {showBots && linkedBots.length > 1 && (
+            <div className="mt-1 py-1 bg-neutral-800 rounded-lg border border-neutral-700">
+              {linkedBots.map((bot) => (
+                <button
+                  key={bot.id}
+                  onClick={() => handleActivate(bot.id)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-neutral-700 transition-colors ${
+                    bot.isActive
+                      ? "text-blue-400"
+                      : "text-neutral-300"
+                  }`}
+                >
+                  <Bot className="w-4 h-4" />
+                  @{bot.botUsername}
+                  {bot.isActive && (
+                    <span className="ml-auto text-[10px] text-blue-400">
+                      ACTIVE
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <nav className="flex-1 p-4 space-y-1">
         {navItems.map((item) => {
