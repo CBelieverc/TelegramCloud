@@ -28,42 +28,44 @@ export async function GET() {
   try {
     db = getDb();
     const userId = getDemoUserId(db);
-    const allBots = db
-      .prepare(
-        "SELECT id, bot_username, telegram_user_id, telegram_chat_id, registration_code, active, linked_at, created_at FROM bots WHERE user_id = ?"
-      )
-      .all(userId) as Array<{
-      id: number;
-      bot_username: string;
-      telegram_user_id: string | null;
-      telegram_chat_id: string | null;
-      registration_code: string | null;
-      active: number;
-      linked_at: number | null;
-      created_at: number;
-    }>;
+     const allBots = db
+       .prepare(
+         "SELECT id, bot_username, bot_token, telegram_user_id, telegram_chat_id, registration_code, active, linked_at, created_at FROM bots WHERE user_id = ?"
+       )
+       .all(userId) as Array<{
+       id: number;
+       bot_username: string;
+       bot_token: string | null;
+       telegram_user_id: string | null;
+       telegram_chat_id: string | null;
+       registration_code: string | null;
+       active: number;
+       linked_at: number | null;
+       created_at: number;
+     }>;
 
-    return NextResponse.json({
-      bots: allBots.map((b) => ({
-        id: b.id,
-        botUsername: b.bot_username,
-        telegramUserId: b.telegram_user_id,
-        telegramChatId: b.telegram_chat_id,
-        registrationCode: b.registration_code,
-        isActive: b.active === 1,
-        linked: !!b.telegram_chat_id,
-        linkedAt: b.linked_at
-          ? new Date(b.linked_at * 1000).toISOString()
-          : null,
-        createdAt: new Date(b.created_at * 1000).toISOString(),
-      })),
-      timestamp: new Date().toISOString(),
-    }, {
-      headers: {
-        "Cache-Control": "no-store, no-cache, must-revalidate",
-        "Pragma": "no-cache",
-      },
-    });
+     return NextResponse.json({
+       bots: allBots.map((b) => ({
+         id: b.id,
+         botUsername: b.bot_username,
+         botToken: b.bot_token,
+         telegramUserId: b.telegram_user_id,
+         telegramChatId: b.telegram_chat_id,
+         registrationCode: b.registration_code,
+         isActive: b.active === 1,
+         linked: !!b.telegram_chat_id,
+         linkedAt: b.linked_at
+           ? new Date(b.linked_at * 1000).toISOString()
+           : null,
+         createdAt: new Date(b.created_at * 1000).toISOString(),
+       })),
+       timestamp: new Date().toISOString(),
+     }, {
+       headers: {
+         "Cache-Control": "no-store, no-cache, must-revalidate",
+         "Pragma": "no-cache",
+       },
+     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -92,24 +94,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true });
     }
 
-    const botUsername = (body.botUsername ?? "").replace("@", "").trim();
-    if (!botUsername) {
-      return NextResponse.json(
-        { error: "botUsername is required" },
-        { status: 400 }
-      );
-    }
+     const botUsername = (body.botUsername ?? "").replace("@", "").trim();
+     if (!botUsername) {
+       return NextResponse.json(
+         { error: "botUsername is required" },
+         { status: 400 }
+       );
+     }
 
-    const code = randomBytes(4).toString("hex").toUpperCase();
-    const existingCount = (
-      db
-        .prepare("SELECT COUNT(*) as cnt FROM bots WHERE user_id = ?")
-        .get(userId) as { cnt: number }
-    ).cnt;
+     // Bot token is optional now - can be added later
+     const botToken = body.botToken ?? null;
+     const code = randomBytes(4).toString("hex").toUpperCase();
+     const existingCount = (
+       db
+         .prepare("SELECT COUNT(*) as cnt FROM bots WHERE user_id = ?")
+         .get(userId) as { cnt: number }
+     ).cnt;
 
-    db.prepare(
-      "INSERT INTO bots (user_id, bot_username, registration_code, active) VALUES (?, ?, ?, ?)"
-    ).run(userId, botUsername, code, existingCount === 0 ? 1 : 0);
+     db.prepare(
+       "INSERT INTO bots (user_id, bot_username, bot_token, registration_code, active) VALUES (?, ?, ?, ?, ?)"
+     ).run(userId, botUsername, botToken, code, existingCount === 0 ? 1 : 0);
 
     const inserted = db
       .prepare(
@@ -213,13 +217,21 @@ export async function PATCH(request: Request) {
       });
     }
 
-    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: msg }, { status: 500 });
-  } finally {
-    db?.close();
-  }
+     if (action === "update-token") {
+       const botToken = body.botToken ?? null;
+       db.prepare(
+         "UPDATE bots SET bot_token = ? WHERE id = ? AND user_id = ?"
+       ).run(botToken, botId, userId);
+       return NextResponse.json({ success: true });
+     }
+
+     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+   } catch (err) {
+     const msg = err instanceof Error ? err.message : "Unknown error";
+     return NextResponse.json({ error: msg }, { status: 500 });
+   } finally {
+     db?.close();
+   }
 }
 
 export async function DELETE(request: Request) {

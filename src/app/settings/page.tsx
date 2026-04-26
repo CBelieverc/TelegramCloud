@@ -19,6 +19,7 @@ import {
 interface BotItem {
   id: number;
   botUsername: string;
+  botToken: string | null;
   telegramUserId: string | null;
   telegramChatId: string | null;
   registrationCode: string | null;
@@ -35,16 +36,17 @@ interface UserStatus {
 }
 
 export default function SettingsPage() {
-  const [user, setUser] = useState<UserStatus | null>(null);
-  const [bots, setBots] = useState<BotItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState<number | null>(null);
-  const [newBotUsername, setNewBotUsername] = useState("");
-  const [addingBot, setAddingBot] = useState(false);
-  const [toast, setToast] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
+   const [user, setUser] = useState<UserStatus | null>(null);
+   const [bots, setBots] = useState<BotItem[]>([]);
+   const [loading, setLoading] = useState(true);
+   const [actionLoading, setActionLoading] = useState<number | null>(null);
+   const [newBotUsername, setNewBotUsername] = useState("");
+   const [addingBot, setAddingBot] = useState(false);
+   const [botTokenInput, setBotTokenInput] = useState("");
+   const [toast, setToast] = useState<{
+     type: "success" | "error";
+     message: string;
+   } | null>(null);
 
   const showToast = (type: "success" | "error", message: string) => {
     setToast({ type, message });
@@ -160,21 +162,50 @@ export default function SettingsPage() {
     }
   };
 
-  const handleDelete = async (botId: number) => {
-    if (!confirm("Remove this bot?")) return;
-    setActionLoading(botId);
-    try {
-      await fetch(`/api/bots?botId=${botId}`, { method: "DELETE" });
-      showToast("success", "Bot removed");
-      await fetchData();
-    } catch {
-      showToast("error", "Failed to remove");
-    } finally {
-      setActionLoading(null);
-    }
-  };
+   const handleDelete = async (botId: number) => {
+     if (!confirm("Remove this bot?")) return;
+     setActionLoading(botId);
+     try {
+       await fetch(`/api/bots?botId=${botId}`, { method: "DELETE" });
+       showToast("success", "Bot removed");
+       await fetchData();
+     } catch {
+       showToast("error", "Failed to remove");
+     } finally {
+       setActionLoading(null);
+     }
+   };
 
-  const handleDisconnect = async (botId: number) => {
+   const handleUpdateToken = async (botId: number) => {
+     const token = botTokenInput.trim();
+     if (!token) {
+       showToast("error", "Bot token is required");
+       return;
+     }
+
+     setActionLoading(botId);
+     try {
+       const res = await fetch("/api/bots", {
+         method: "PATCH",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({ action: "update-token", botId, botToken: token }),
+       });
+       const data = await res.json();
+       if (res.ok) {
+         showToast("success", "Bot token saved!");
+         setBotTokenInput("");
+         await fetchData();
+       } else {
+         showToast("error", data.error || "Failed to save bot token");
+       }
+     } catch {
+       showToast("error", "Failed to save bot token");
+     } finally {
+       setActionLoading(null);
+     }
+   };
+
+   const handleDisconnect = async (botId: number) => {
     if (!confirm("Disconnect this bot?")) return;
     setActionLoading(botId);
     try {
@@ -358,16 +389,42 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {/* Telegram Link */}
-                <a
-                  href={`https://t.me/${bot.botUsername}?start=${bot.registrationCode}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 transition-colors mb-3"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Open @{bot.botUsername} in Telegram
-                </a>
+                 {/* Telegram Link */}
+                 <a
+                   href={`https://t.me/${bot.botUsername}?start=${bot.registrationCode}`}
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 transition-colors mb-3"
+                 >
+                   <ExternalLink className="w-4 h-4" />
+                   Open @{bot.botUsername} in Telegram
+                 </a>
+
+                 {/* Bot Token Input (if not set) */}
+                 {!bot.botToken && (
+                   <div className="mt-4">
+                     <label className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1 block font-medium">
+                       Bot Token
+                     </label>
+                     <div className="flex items-center gap-2">
+                       <input
+                         type="password"
+                         value={botTokenInput ?? ""}
+                         onChange={(e) => setBotTokenInput(e.target.value)}
+                         onKeyDown={(e) => e.key === "Enter" && handleUpdateToken(bot.id)}
+                         placeholder="Enter bot token from @BotFather"
+                         className="w-full pl-4 pr-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white placeholder-neutral-500 outline-none focus:border-blue-500 transition-colors"
+                       />
+                       <button
+                         onClick={() => handleUpdateToken(bot.id)}
+                         disabled={actionLoading === bot.id || !botTokenInput?.trim()}
+                         className="px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors"
+                       >
+                         {actionLoading === bot.id ? "Saving..." : "Save Token"}
+                       </button>
+                     </div>
+                   </div>
+                 )}
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2">
