@@ -94,10 +94,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true });
     }
 
-     const botUsername = (body.botUsername ?? "").replace("@", "").trim();
+     let botUsername = (body.botUsername ?? "").replace("@", "").trim();
      if (!botUsername) {
        return NextResponse.json(
          { error: "botUsername is required" },
+         { status: 400 }
+       );
+     }
+     
+     // Validate bot username according to Telegram rules
+     // Must be 5-32 characters, alphanumeric and underscores only
+     const usernameRegex = /^[a-zA-Z0-9_]{5,32}$/;
+     if (!usernameRegex.test(botUsername)) {
+       return NextResponse.json(
+         { error: "botUsername must be 5-32 characters and contain only letters, numbers, and underscores" },
          { status: 400 }
        );
      }
